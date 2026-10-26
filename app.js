@@ -1,6 +1,7 @@
 import {
   P, BREAKS, binOf, binLabel, filterPeople, sortPeople, personUrl, isWikipedia, centroid,
   encodeState, decodeState, lifeLine, otherView, pct, overRepresented, ratioLabel,
+  US, overRepresentedStates, STATE_BREAKS,
 } from './roots-logic.js';
 
 const $ = (id) => document.getElementById(id);
@@ -11,7 +12,10 @@ let byQ = new Map();
 const cache = {};
 const FILES = { studied: 'data/roots.json', worked: 'data/faculty.json' };
 const VERB = { studied: 'studied', worked: 'worked' };
-const state = { view: 'studied', country: null, q: '', sort: 'old', shown: PAGE };
+const state = { view: 'studied', country: null, st: null, q: '', sort: 'old', shown: PAGE };
+// US state outlines, fetched the first time anyone picks the US (108 KB nobody else pays).
+let usGeo = null;
+let stName = new Map();
 
 const el = (tag, attrs = {}) => {
   const n = document.createElementNS(SVGNS, tag);
@@ -113,6 +117,7 @@ function drawSelection() {
     const seen = new Set();
     for (const p of D.people) {
       if (p[P.X] == null || !p[P.CS].includes(state.country)) continue;
+      if (state.st && !(p[P.ST] || []).includes(state.st)) continue; // a state narrows the dots too
       const key = `${p[P.X]},${p[P.Y]}`;
       if (seen.has(key)) continue; // one dot per birthplace, not one per person
       seen.add(key);
@@ -128,14 +133,15 @@ function drawSelection() {
 function drawList() {
   const list = sortPeople(filterPeople(D.people, state), state.sort);
   const c = state.country && byQ.get(state.country);
-  $('listTitle').textContent = c ? `Born in ${c.name}` : 'Born everywhere';
+  const where = state.st ? stName.get(state.st) : c && c.name;
+  $('listTitle').textContent = where ? `Born in ${where}` : 'Born everywhere';
   $('listCount').textContent = `${fmt(list.length)} ${list.length === 1 ? 'person' : 'people'}`;
   const ol = $('people');
   ol.replaceChildren();
   if (!list.length) {
     const li = document.createElement('li');
     li.className = 'empty';
-    li.textContent = state.q ? `Nobody matches “${state.q}”${c ? ` in ${c.name}` : ''}.` : 'Nobody recorded.';
+    li.textContent = state.q ? `Nobody matches “${state.q}”${where ? ` in ${where}` : ''}.` : 'Nobody recorded.';
     ol.append(li);
   }
   for (const p of list.slice(0, state.shown)) {
@@ -158,14 +164,134 @@ function drawList() {
 function sync() {
   history.replaceState(null, '', location.pathname + encodeState(state));
   $('country').value = state.country || '';
+  if (usGeo) $('state').value = state.st || '';
   $('sort').value = state.sort;
   if ($('q').value !== state.q) $('q').value = state.q;
 }
 
 function select(q) {
   state.country = q;
+  if (q !== US) state.st = null;
   state.shown = PAGE;
-  sync(); drawSelection(); drawList();
+  sync(); drawSelection(); drawList(); drawUS();
+}
+
+function selectState(s) {
+  state.st = s;
+  state.shown = PAGE;
+  sync(); drawSelection(); drawStateSelection(); drawList();
+}
+
+async function loadUS() {
+  usGeo ||= fetch('data/us-states.json').then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); });
+  try { const g = await usGeo; stName = new Map(g.states.map((s) => [s.q, s.name])); return g; }
+  catch (e) { usGeo = null; throw e; }
+}
+
+// "California: 1,204 people · 31.8% of the US-born who studied here, 13.5% of those who worked here"
+function compareState(q) {
+  const n = D.states.n[q] || 0, there = D.alt.states.n[q] || 0;
+  return `${stName.get(q)}: ${fmt(n)} ${n === 1 ? 'person' : 'people'} · ${pct(n, D.states.us)} of the US-born who ` +
+    `${VERB[state.view]} here, ${pct(there, D.alt.states.us)} of those who ${VERB[otherView(state.view)]} here`;
+}
+const usHoverDefault = () => (state.st
+  ? `Showing ${stName.get(state.st)}. Tap it again, or pick “All states”, to clear.`
+  : 'Tap a state.');
+
+// The second map, shown only with the US chosen. Redrawn on every view switch, since the
+// counts are per view; the outlines are fetched once.
+async function drawUS() {
+  const box = $('us');
+  if (state.country !== US) { box.hidden = true; return; }
+  let g;
+  try { g = await loadUS(); }
+  catch { box.hidden = false; $('usmap').textContent = 'Could not load the state outlines. Try reloading.'; return; }
+  if (state.country !== US) return; // changed while loading
+  box.hidden = false;
+  if (state.st && !(D.states.n[state.st] > 0)) state.st = null;
+  const [vx, vy, vw, vh] = g.view;
+  const svg = el('svg', { viewBox: `${vx} ${vy} ${vw} ${vh}`, role: 'img',
+    'aria-label': `Map of US states shaded by how many US-born people who ${VERB[state.view]} at Stanford were born in each` });
+  for (const s of g.states) {
+    const n = D.states.n[s.q] || 0;
+    const p = n
+      ? el('path', { d: s.d, class: 'c', fill: `var(--b${binOf(n, STATE_BREAKS)})`, 'data-s': s.q })
+      : el('path', { d: s.d, class: 'c e' });
+    const t = el('title'); t.textContent = `${s.name}: ${fmt(n)}`; p.append(t);
+    svg.append(p);
+  }
+  svg.addEventListener('click', (e) => {
+    const q = e.target.closest('[data-s]')?.dataset.s;
+    if (q) selectState(state.st === q ? null : q);
+  });
+  svg.addEventListener('pointerover', (e) => {
+    const q = e.target.closest('[data-s]')?.dataset.s;
+    if (q) $('usHover').textContent = compareState(q);
+  });
+  svg.addEventListener('pointerleave', () => { $('usHover').textContent = usHoverDefault(); });
+  $('usmap').replaceChildren(svg);
+  const lg = $('usLegend');
+  lg.replaceChildren();
+  STATE_BREAKS.forEach((_, i) => {
+    const k = document.createElement('span');
+    k.className = 'k';
+    k.innerHTML = `<span class="sw" style="background:var(--b${i})"></span>`;
+    k.append(binLabel(i, STATE_BREAKS));
+    lg.append(k);
+  });
+
+  $('usTitle').textContent = `Born in the United States, by state: ${fmt(D.states.us)} who ${VERB[state.view]} here`;
+  const sel = $('state');
+  sel.replaceChildren();
+  const all = document.createElement('option'); all.value = ''; all.textContent = `All states (${fmt(D.states.us)})`;
+  sel.append(all);
+  const ranked = g.states.filter((s) => D.states.n[s.q]).sort((a, b) => D.states.n[b.q] - D.states.n[a.q] || (a.name < b.name ? -1 : 1));
+  for (const s of ranked) {
+    const o = document.createElement('option'); o.value = s.q; o.textContent = `${s.name} (${fmt(D.states.n[s.q])})`; sel.append(o);
+  }
+
+  const o = overRepresentedStates(D, stName);
+  const p = $('usContrast');
+  p.replaceChildren();
+  if (o.length) {
+    const b = document.createElement('b');
+    b.textContent = `More common among the US-born who ${VERB[state.view]} here than those who ${VERB[otherView(state.view)]} here: `;
+    p.append(b);
+    o.forEach((x, i) => {
+      const a = document.createElement('button');
+      a.type = 'button'; a.className = 'chip'; a.dataset.s = x.q;
+      a.textContent = `${x.name} ${ratioLabel(x.ratio, VERB[otherView(state.view)])}`;
+      a.title = compareState(x.q);
+      p.append(a);
+      if (i < o.length - 1) p.append(' ');
+    });
+  }
+  const none = D.states.us - D.states.with_state;
+  $('usNote').textContent = none
+    ? `${fmt(none)} of them have no state on Wikidata: born “in the United States”, or in Puerto Rico, Guam or American Samoa. ` +
+      'They are in the US list but on no state.'
+    : '';
+
+  const t = document.createElement('table');
+  t.innerHTML = `<tr><th>State</th><th class="r">People</th><th class="r">Share of US-born</th>` +
+    `<th class="r">Share of US-born who ${VERB[otherView(state.view)]} here</th></tr>`;
+  for (const s of ranked) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td'); td.textContent = s.name;
+    const n = document.createElement('td'); n.className = 'r'; n.textContent = fmt(D.states.n[s.q]);
+    const s1 = document.createElement('td'); s1.className = 'r'; s1.textContent = pct(D.states.n[s.q], D.states.us);
+    const s2 = document.createElement('td'); s2.className = 'r'; s2.textContent = pct(D.alt.states.n[s.q] || 0, D.alt.states.us);
+    tr.append(td, n, s1, s2); t.append(tr);
+  }
+  $('usTable').replaceChildren(t);
+  sync(); drawSelection(); drawStateSelection(); drawList();
+}
+
+function drawStateSelection() {
+  for (const n of document.querySelectorAll('#usmap [data-s]')) n.classList.toggle('sel', n.dataset.s === state.st);
+  const sel = document.querySelector(`#usmap path[data-s="${state.st}"]`);
+  if (sel) sel.parentNode.append(sel); // above its neighbours, so the outline is whole
+  $('usHover').textContent = usHoverDefault();
 }
 
 function drawTable() {
@@ -216,7 +342,7 @@ async function show(view) {
   byQ = new Map(D.countries.map((c) => [c.q, c]));
   if (state.country && !byQ.has(state.country)) state.country = null;
   state.shown = PAGE;
-  drawViewControls(); drawMap(); drawContrast(); drawTable(); sync(); drawSelection(); drawList();
+  drawViewControls(); drawMap(); drawContrast(); drawTable(); sync(); drawSelection(); drawList(); drawUS();
   return true;
 }
 
@@ -227,7 +353,8 @@ async function main() {
   let doc;
   try { doc = await load(want); }
   catch { $('sub').textContent = 'Could not load the data. Try reloading.'; return; }
-  Object.assign(state, decodeState(location.search, new Set(doc.countries.map((c) => c.q))));
+  Object.assign(state, decodeState(location.search, new Set(doc.countries.map((c) => c.q)),
+    new Set(Object.keys(doc.states.n))));
   await show(want);
   const sel = $('country');
   $('views').addEventListener('click', (e) => {
@@ -239,6 +366,11 @@ async function main() {
     if (q) select(q);
   });
   sel.addEventListener('change', () => select(sel.value || null));
+  $('state').addEventListener('change', () => selectState($('state').value || null));
+  $('usContrast').addEventListener('click', (e) => {
+    const q = e.target.closest('button[data-s]')?.dataset.s;
+    if (q) selectState(q);
+  });
   $('sort').addEventListener('change', () => { state.sort = $('sort').value; state.shown = PAGE; sync(); drawList(); });
   let t;
   $('q').addEventListener('input', () => {

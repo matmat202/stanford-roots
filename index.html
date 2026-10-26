@@ -79,6 +79,11 @@ summary{cursor:pointer;font-size:13px;color:var(--ink-2)}
 .contrast b{font-weight:600;color:var(--ink)}
 .chip{font:inherit;font-size:12px;padding:2px 9px;border:1px solid var(--line);border-radius:999px;background:var(--ground);color:var(--ink);cursor:pointer}
 .chip:hover{border-color:var(--accent);color:var(--accent)}
+#us svg{display:block;width:100%;height:auto;touch-action:manipulation}
+#us h2{font-size:16px;margin:2px 4px 6px}
+#us .row{display:flex;gap:8px;align-items:center;margin:8px 4px 0;flex-wrap:wrap}
+#us .row select{width:auto;flex:1 1 220px}
+#us .note{font-size:12px;color:var(--ink-3);margin:6px 4px 0}
 footer{font-size:12px;color:var(--ink-2);line-height:1.5;margin:18px 2px 8px}
 </style>
 </head>
@@ -97,6 +102,20 @@ footer{font-size:12px;color:var(--ink-2);line-height:1.5;margin:18px 2px 8px}
     <div class="legend" id="legend"></div>
     <p class="tipbox" id="hover" aria-live="polite"></p>
     <p class="contrast" id="contrast"></p>
+  </section>
+
+  <section class="card" id="us" aria-label="United States by state" hidden style="margin-top:12px">
+    <h2 id="usTitle">Born in the United States, by state</h2>
+    <div id="usmap"></div>
+    <div class="legend" id="usLegend"></div>
+    <p class="tipbox" id="usHover" aria-live="polite"></p>
+    <div class="row"><label class="v" for="state">State</label><select id="state"></select></div>
+    <p class="contrast" id="usContrast"></p>
+    <p class="note" id="usNote"></p>
+    <details>
+      <summary>Every state, as a table</summary>
+      <div class="tbl" id="usTable"></div>
+    </details>
   </section>
 
   <div class="controls">
@@ -119,7 +138,8 @@ footer{font-size:12px;color:var(--ink-2);line-height:1.5;margin:18px 2px 8px}
   <footer id="foot">Data: <a href="https://www.wikidata.org/">Wikidata</a> (CC0), people with "educated at" (P69) or, under
     "Worked here", "employer" (P108) Stanford or one of its schools, and a recorded birthplace. Someone who did both is in both. Wikidata is volunteer-edited, so it over-represents the famous and
     the American, someone missing here may simply have no birthplace recorded, and a few records are plainly wrong (an 1848-born sculptor did not study at a university founded in 1891). Fix them on Wikidata and the next rebuild picks it up. Births before 1891 are often real: Stanford's medical school grew out of Cooper Medical College. Map: Natural Earth via
-    <a href="https://github.com/topojson/world-atlas">world-atlas</a>. Built by Claude for
+    <a href="https://github.com/topojson/world-atlas">world-atlas</a>; states: US Census via
+    <a href="https://github.com/topojson/us-atlas">us-atlas</a>. Built by Claude for
     <a href="https://matmat202.github.io/">matmat202</a>. Not affiliated with Stanford University.</footer>
 </main>
 <script type="module" src="app.js"></script>

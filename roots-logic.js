@@ -1,20 +1,27 @@
 /* Pure logic for Stanford Roots: bins, search, sorting, URL state. No DOM, so node can
  * test it (site/roots-logic.test.mjs). A person is the array build.py writes:
- *   [qid, name, description, bornYear|null, birthplace, [countryQid...], x|null, y|null, url]
+ *   [qid, name, description, bornYear|null, birthplace, [countryQid...], x|null, y|null, url,
+ *    [usStateQid...]]
+ * The states are empty for anyone not counted in the US, and for the ~2% of the US-born
+ * whose birthplace Wikidata does not place in a state (bare "United States", Puerto Rico).
  */
-export const P = { Q: 0, NAME: 1, DESC: 2, BORN: 3, PLACE: 4, CS: 5, X: 6, Y: 7, URL: 8 };
+export const P = { Q: 0, NAME: 1, DESC: 2, BORN: 3, PLACE: 4, CS: 5, X: 6, Y: 7, URL: 8, ST: 9 };
+export const US = 'Q30';
 
 // Class breaks for the map. Counts run from 1 to ~3,800 (the US), so they are log-ish:
 // a linear scale would paint the US dark and every other country the same pale shade.
 export const BREAKS = [1, 3, 10, 30, 100];
-export function binOf(n) {
+// States run 1 to ~1,200 (California) and most sit at 25-100, which the country breaks
+// would paint all one dark shade. One scale for both views, as on the world map.
+export const STATE_BREAKS = [1, 10, 25, 50, 150];
+export function binOf(n, breaks = BREAKS) {
   if (!(n >= 1)) return -1;
   let b = 0;
-  for (let i = 0; i < BREAKS.length; i++) if (n >= BREAKS[i]) b = i;
+  for (let i = 0; i < breaks.length; i++) if (n >= breaks[i]) b = i;
   return b;
 }
-export function binLabel(i) {
-  const lo = BREAKS[i], hi = BREAKS[i + 1];
+export function binLabel(i, breaks = BREAKS) {
+  const lo = breaks[i], hi = breaks[i + 1];
   if (hi == null) return `${lo}+`;
   return hi - 1 === lo ? `${lo}` : `${lo}–${hi - 1}`;
 }
@@ -22,12 +29,15 @@ export function binLabel(i) {
 // Case- and accent-insensitive: "jose" finds "José", "sao paulo" finds "São Paulo".
 export const fold = (s) => String(s ?? '').normalize('NFD').replace(/\p{M}+/gu, '').toLowerCase();
 
-/* Everyone matching a country (null = everywhere) and a free-text query over name,
- * description and birthplace. Every word of the query must match somewhere. */
-export function filterPeople(people, { country = null, q = '' } = {}) {
+/* Everyone matching a country (null = everywhere), a US state (only with the US chosen)
+ * and a free-text query over name, description and birthplace. Every word of the query
+ * must match somewhere. */
+export function filterPeople(people, { country = null, st = null, q = '' } = {}) {
   const words = fold(q).split(/\s+/).filter(Boolean);
+  if (country !== US) st = null;
   return people.filter((p) => {
     if (country && !p[P.CS].includes(country)) return false;
+    if (st && !(p[P.ST] || []).includes(st)) return false;
     if (!words.length) return true;
     const hay = fold(`${p[P.NAME]} ${p[P.DESC]} ${p[P.PLACE]}`);
     return words.every((w) => hay.includes(w));
@@ -79,12 +89,21 @@ export function pct(n, total) {
 /* Countries whose share of this view beats their share of the other one, biggest ratio
  * first. `min` people in this view keeps 2-against-1 noise out of the headline; a country
  * the other view has nobody from ranks first, as `ratio: Infinity`. */
-export function overRepresented(doc, { min = 10, top = 5 } = {}) {
-  const total = doc.people.length, alt = doc.alt, out = [];
-  for (const c of doc.countries) {
+export function overRepresented(doc, opts) {
+  return rankOver(doc.countries, doc.people.length, doc.alt.n, doc.alt.people, opts);
+}
+/* The same within the US: a state's share of the US-born in this view against its share
+ * in the other. `names` is QID -> name, from us-states.json. */
+export function overRepresentedStates(doc, names, opts) {
+  const items = Object.entries(doc.states.n).map(([q, n]) => ({ q, n, name: names.get(q) || q }));
+  return rankOver(items, doc.states.us, doc.alt.states.n, doc.alt.states.us, opts);
+}
+function rankOver(items, total, altN, altTotal, { min = 10, top = 5 } = {}) {
+  const out = [];
+  for (const c of items) {
     if (c.n < min) continue;
-    const there = alt.n[c.q] || 0;
-    const ratio = there ? (c.n / total) / (there / alt.people) : Infinity;
+    const there = altN[c.q] || 0;
+    const ratio = there ? (c.n / total) / (there / altTotal) : Infinity;
     if (ratio > 1) out.push({ q: c.q, name: c.name, n: c.n, there, ratio });
   }
   out.sort((a, b) => b.ratio - a.ratio || b.n - a.n || (a.name < b.name ? -1 : 1));
@@ -92,24 +111,29 @@ export function overRepresented(doc, { min = 10, top = 5 } = {}) {
 }
 export const ratioLabel = (r, other = 'studied') => (r === Infinity ? `none who ${other} here` : `${r.toFixed(1)}×`);
 
-// ?v=worked&c=Q668&q=physicist&sort=new. Unknown values fall back rather than throw.
+// ?v=worked&c=Q30&s=Q99&q=physicist&sort=new. Unknown values fall back rather than throw;
+// a state is kept only under the US.
 const SORTS = ['old', 'new', 'az'];
-export function encodeState({ view, country, q, sort }) {
+export function encodeState({ view, country, st, q, sort }) {
   const p = new URLSearchParams();
   if (view === 'worked') p.set('v', 'worked');
   if (country) p.set('c', country);
+  if (st && country === US) p.set('s', st);
   if (q && q.trim()) p.set('q', q.trim());
   if (sort && sort !== 'old') p.set('sort', sort);
   const s = p.toString();
   return s ? `?${s}` : '';
 }
-export function decodeState(search, knownCountries) {
+export function decodeState(search, knownCountries, knownStates = new Set()) {
   const p = new URLSearchParams(search || '');
   const c = p.get('c');
+  const s = p.get('s');
   const sort = p.get('sort');
+  const country = c && knownCountries.has(c) ? c : null;
   return {
     view: p.get('v') === 'worked' ? 'worked' : 'studied',
-    country: c && knownCountries.has(c) ? c : null,
+    country,
+    st: country === US && s && knownStates.has(s) ? s : null,
     q: (p.get('q') || '').slice(0, 80),
     sort: SORTS.includes(sort) ? sort : 'old',
   };

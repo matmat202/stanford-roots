@@ -16,7 +16,9 @@ eq('3 opens the second', L.binOf(3), 1);
 eq('99 is in 30-99', L.binOf(99), 3);
 eq('100 opens the top bin', L.binOf(100), 4);
 eq('3800 is the top bin', L.binOf(3800), 4);
-eq('bin labels', [0, 1, 2, 3, 4].map(L.binLabel), ['1–2', '3–9', '10–29', '30–99', '100+']);
+eq('bin labels', [0, 1, 2, 3, 4].map((i) => L.binLabel(i)), ['1–2', '3–9', '10–29', '30–99', '100+']);
+eq('state bins', [0, 9, 10, 49, 50, 149, 150, 1204].map((n) => L.binOf(n, L.STATE_BREAKS)), [-1, 0, 1, 2, 3, 3, 4, 4]);
+eq('state bin labels', [0, 1, 2, 3, 4].map((i) => L.binLabel(i, L.STATE_BREAKS)), ['1–9', '10–24', '25–49', '50–149', '150+']);
 
 // --- search -------------------------------------------------------------------------
 const mk = (q, name, desc, born, place, cs) => [q, name, desc, born, place, cs, 1, 1, 'w:' + name];
@@ -53,7 +55,7 @@ eq('centroid ignores pointless people', L.centroid([[...mk('a', 'a', '', 1, '', 
 const known = new Set(['Q30', 'Q668']);
 eq('state encodes', L.encodeState({ country: 'Q668', q: ' physicist ', sort: 'new' }), '?c=Q668&q=physicist&sort=new');
 eq('default state is empty', L.encodeState({ country: null, q: '', sort: 'old' }), '');
-eq('state round-trips', L.decodeState(L.encodeState({ country: 'Q668', q: 'a b', sort: 'az' }), known), { view: 'studied', country: 'Q668', q: 'a b', sort: 'az' });
+eq('state round-trips', L.decodeState(L.encodeState({ country: 'Q668', q: 'a b', sort: 'az' }), known), { view: 'studied', country: 'Q668', st: null, q: 'a b', sort: 'az' });
 eq('worked view encodes first', L.encodeState({ view: 'worked', country: 'Q668', q: '', sort: 'old' }), '?v=worked&c=Q668');
 eq('studied view is the default and stays out of the url', L.encodeState({ view: 'studied', country: null, q: '', sort: 'old' }), '');
 eq('worked view round-trips', L.decodeState('?v=worked', known).view, 'worked');
@@ -63,6 +65,33 @@ eq('unknown country ignored', L.decodeState('?c=Q999999', known).country, null);
 eq('unknown sort falls back', L.decodeState('?sort=evil', known).sort, 'old');
 eq('life line', L.lifeLine(people[0]), 'b. 1950 · São Paulo');
 eq('life line without year', L.lifeLine(people[2]), 'Taipei');
+
+// --- US states (four people, out of order; one with two states, one US-born with none)
+{
+  const ps = [
+    [...mk('S1', 'Cal One', '', 1950, 'Fresno', ['Q30']), 'w:a', ['Q99']].filter((_, i) => i !== 8),
+    [...mk('S2', 'Two State', '', 1900, 'Navajo Nation', ['Q30']), 'w:b', ['Q1588', 'Q829']].filter((_, i) => i !== 8),
+    [...mk('S3', 'No State', '', 1960, 'United States', ['Q30']), 'w:c', []].filter((_, i) => i !== 8),
+    [...mk('S4', 'Abroad', '', 1970, 'Lyon', ['Q142']), 'w:d', []].filter((_, i) => i !== 8),
+  ];
+  eq('state field sits at P.ST', ps.map((p) => p[L.P.ST]), [['Q99'], ['Q1588', 'Q829'], [], []]);
+  eq('state filter', names(L.filterPeople(ps, { country: 'Q30', st: 'Q99' })), ['Cal One']);
+  eq('a person in two states is in both', [L.filterPeople(ps, { country: 'Q30', st: 'Q1588' }).length, L.filterPeople(ps, { country: 'Q30', st: 'Q829' }).length], [1, 1]);
+  eq('a state without the US is ignored', L.filterPeople(ps, { country: 'Q142', st: 'Q99' }).length, 1);
+  eq('state and query combine', L.filterPeople(ps, { country: 'Q30', st: 'Q99', q: 'two' }).length, 0);
+  const ks = new Set(['Q99']);
+  eq('state encodes under the US', L.encodeState({ country: 'Q30', st: 'Q99', q: '', sort: 'old' }), '?c=Q30&s=Q99');
+  eq('state dropped without the US', L.encodeState({ country: 'Q668', st: 'Q99', q: '', sort: 'old' }), '?c=Q668');
+  eq('state round-trips', L.decodeState('?c=Q30&s=Q99', known, ks).st, 'Q99');
+  eq('unknown state ignored', L.decodeState('?c=Q30&s=Q1', known, ks).st, null);
+  eq('state without the US ignored on decode', L.decodeState('?c=Q668&s=Q99', known, ks).st, null);
+  const doc = { states: { us: 100, n: { CA: 40, NY: 10, TX: 30, WY: 3, ME: 12 } }, alt: { states: { us: 200, n: { CA: 20, NY: 60, TX: 40, WY: 1 } } } };
+  const nm = new Map([['CA', 'California'], ['NY', 'New York'], ['TX', 'Texas'], ['ME', 'Maine']]);
+  const o = L.overRepresentedStates(doc, nm);
+  eq('states over-represented: ratio order, none-elsewhere first, under-min and under-1 dropped', o.map((x) => x.q), ['ME', 'CA', 'TX']);
+  eq('state ratio is share of US-born over share', o[1].ratio, 4);
+  eq('state names come from the outlines file', o[1].name, 'California');
+}
 
 // --- shares and over-representation (4 countries, out of order) -----------------------
 eq('pct', [L.pct(98, 1789), L.pct(0, 10), L.pct(1, 5000), L.pct(5, 0)], ['5.5%', '0%', '<0.1%', '0%']);
@@ -108,6 +137,34 @@ ok('Singapore is listed though off the 110m map', byQ.get('Q334') && !byQ.get('Q
   ok('Tokyo projects east of Palo Alto and into Asia', tokyo && tokyo[6] > vw * 0.8, JSON.stringify(tokyo && [tokyo[6], tokyo[7]]));
 }
 ok('every mapped country path is a closed path', D.countries.every((c) => c.d == null || /^M[\d.,L-]+Z/.test(c.d)));
+
+// --- US states in the shipped data -----------------------------------------------------
+const U = JSON.parse(readFileSync(here + 'data/us-states.json', 'utf8'));
+const stNames = new Map(U.states.map((s) => [s.q, s.name]));
+eq('50 states and D.C. outlined', U.states.length, 51);
+ok('every state outline is a closed path inside its box', U.states.every((s) => /^(M[\d.,L-]+Z)+$/.test(s.d)
+  && s.d.match(/-?[\d.]+/g).every((v, i) => +v >= U.view[i % 2] && +v <= U.view[i % 2] + U.view[2 + (i % 2)])));
+for (const [name, X] of [['studied', D], ['worked', F]]) {
+  let stOk = true;
+  for (const [q, n] of Object.entries(X.states.n)) if (L.filterPeople(X.people, { country: L.US, st: q }).length !== n) stOk = false;
+  ok(`${name}: every state count equals its people`, stOk);
+  ok(`${name}: every state is a known outline`, Object.keys(X.states.n).every((q) => stNames.has(q)));
+  ok(`${name}: only people counted in the US have a state`, X.people.every((p) => !p[9].length || p[5].includes(L.US)));
+  eq(`${name}: states.us is the US count`, X.states.us, X.countries.find((c) => c.q === L.US).n);
+  eq(`${name}: with_state counts people with one`, X.states.with_state, X.people.filter((p) => p[9].length).length);
+  // Measured 2026-10-26: 98.1% of the US-born studied, 97.4% worked. A refetch that drops
+  // below 95% has lost the P131 walk, not found a lot of unplaced people.
+  ok(`${name}: over 95% of the US-born have a state`, X.states.with_state / X.states.us > 0.95, X.states.with_state / X.states.us);
+}
+eq('each file carries the other file\'s state counts', [D.alt.states, F.alt.states], [F.states, D.states]);
+{
+  const pa = D.people.find((p) => p[4] === 'Palo Alto');
+  eq('Palo Alto is in California', pa && pa[9], ['Q99']);
+}
+// The finding, measured 2026-10-26: California is a third of the US-born who studied
+// here but a seventh of those who worked here; New York is the reverse.
+ok('California is over-represented among the US-born who studied here', L.overRepresentedStates(D, stNames).some((x) => x.q === 'Q99'));
+ok('New York is over-represented among the US-born who worked here', L.overRepresentedStates(F, stNames, { top: 20 }).some((x) => x.q === 'Q1384'));
 
 // --- the worked-here view, and the cross-links between the two files -------------------
 ok('worked view: over a thousand people', F.people.length > 1000, F.people.length);
