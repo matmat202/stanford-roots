@@ -6,7 +6,7 @@
 <title>Stanford Roots · where Stanford's people were born</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%238c1515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='none' stroke='%23fff' stroke-width='2.5'/%3E%3Cpath d='M7 16h18M16 7c-4 5-4 13 0 18M16 7c4 5 4 13 0 18' fill='none' stroke='%23fff' stroke-width='2'/%3E%3C/svg%3E">
 <meta name="theme-color" content="#8c1515">
-<meta name="description" content="A world map of where 5,000+ Stanford-educated people were born, from Wikidata. Pick a country and meet everyone from it.">
+<meta name="description" content="A world map of where 5,000+ Stanford-educated people, and 1,700+ who worked there, were born, from Wikidata. Pick a country and meet everyone from it.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://matmat202.github.io/stanford-roots/">
 <meta property="og:title" content="Stanford Roots">
@@ -70,6 +70,15 @@ summary{cursor:pointer;font-size:13px;color:var(--ink-2)}
 .tbl table{border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums;margin-top:6px;width:100%}
 .tbl th,.tbl td{padding:3px 8px;border-bottom:1px solid var(--line);text-align:left}
 .tbl td.r,.tbl th.r{text-align:right}
+.views{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:0 0 10px;background:var(--card)}
+.views button{font:inherit;font-size:14px;padding:8px 14px;border:0;background:none;color:var(--ink-2);cursor:pointer}
+.views button:focus-visible{outline-offset:-4px}
+.views button[aria-pressed="true"]:focus-visible{outline-color:var(--card)}
+.views button[aria-pressed="true"]{background:var(--accent);color:var(--card);font-weight:600}
+.contrast{font-size:13px;color:var(--ink-2);margin:6px 4px 2px;line-height:1.9}
+.contrast b{font-weight:600;color:var(--ink)}
+.chip{font:inherit;font-size:12px;padding:2px 9px;border:1px solid var(--line);border-radius:999px;background:var(--ground);color:var(--ink);cursor:pointer}
+.chip:hover{border-color:var(--accent);color:var(--accent)}
 footer{font-size:12px;color:var(--ink-2);line-height:1.5;margin:18px 2px 8px}
 </style>
 </head>
@@ -78,10 +87,16 @@ footer{font-size:12px;color:var(--ink-2);line-height:1.5;margin:18px 2px 8px}
   <h1>Stanford <span class="red">Roots</span></h1>
   <p class="sub" id="sub">Where the people Wikidata lists as educated at Stanford were born. Tap a country to meet everyone from it.</p>
 
+  <div class="views" id="views" role="group" aria-label="Whose birthplaces">
+    <button type="button" data-v="studied" aria-pressed="true">Studied here</button>
+    <button type="button" data-v="worked" aria-pressed="false">Worked here</button>
+  </div>
+
   <section class="card" aria-label="World map">
     <div id="map"></div>
     <div class="legend" id="legend"></div>
     <p class="tipbox" id="hover" aria-live="polite"></p>
+    <p class="contrast" id="contrast"></p>
   </section>
 
   <div class="controls">
@@ -101,8 +116,8 @@ footer{font-size:12px;color:var(--ink-2);line-height:1.5;margin:18px 2px 8px}
     <div class="tbl" id="table"></div>
   </details>
 
-  <footer id="foot">Data: <a href="https://www.wikidata.org/">Wikidata</a> (CC0), people with "educated at" Stanford
-    or one of its schools and a recorded birthplace. Wikidata is volunteer-edited, so it over-represents the famous and
+  <footer id="foot">Data: <a href="https://www.wikidata.org/">Wikidata</a> (CC0), people with "educated at" (P69) or, under
+    "Worked here", "employer" (P108) Stanford or one of its schools, and a recorded birthplace. Someone who did both is in both. Wikidata is volunteer-edited, so it over-represents the famous and
     the American, someone missing here may simply have no birthplace recorded, and a few records are plainly wrong (an 1848-born sculptor did not study at a university founded in 1891). Fix them on Wikidata and the next rebuild picks it up. Births before 1891 are often real: Stanford's medical school grew out of Cooper Medical College. Map: Natural Earth via
     <a href="https://github.com/topojson/world-atlas">world-atlas</a>. Built by Claude for
     <a href="https://matmat202.github.io/">matmat202</a>. Not affiliated with Stanford University.</footer>

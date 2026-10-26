@@ -53,15 +53,36 @@ eq('centroid ignores pointless people', L.centroid([[...mk('a', 'a', '', 1, '', 
 const known = new Set(['Q30', 'Q668']);
 eq('state encodes', L.encodeState({ country: 'Q668', q: ' physicist ', sort: 'new' }), '?c=Q668&q=physicist&sort=new');
 eq('default state is empty', L.encodeState({ country: null, q: '', sort: 'old' }), '');
-eq('state round-trips', L.decodeState(L.encodeState({ country: 'Q668', q: 'a b', sort: 'az' }), known), { country: 'Q668', q: 'a b', sort: 'az' });
+eq('state round-trips', L.decodeState(L.encodeState({ country: 'Q668', q: 'a b', sort: 'az' }), known), { view: 'studied', country: 'Q668', q: 'a b', sort: 'az' });
+eq('worked view encodes first', L.encodeState({ view: 'worked', country: 'Q668', q: '', sort: 'old' }), '?v=worked&c=Q668');
+eq('studied view is the default and stays out of the url', L.encodeState({ view: 'studied', country: null, q: '', sort: 'old' }), '');
+eq('worked view round-trips', L.decodeState('?v=worked', known).view, 'worked');
+eq('unknown view falls back', L.decodeState('?v=evil', known).view, 'studied');
+eq('other view', [L.otherView('studied'), L.otherView('worked')], ['worked', 'studied']);
 eq('unknown country ignored', L.decodeState('?c=Q999999', known).country, null);
 eq('unknown sort falls back', L.decodeState('?sort=evil', known).sort, 'old');
 eq('life line', L.lifeLine(people[0]), 'b. 1950 · São Paulo');
 eq('life line without year', L.lifeLine(people[2]), 'Taipei');
 
+// --- shares and over-representation (4 countries, out of order) -----------------------
+eq('pct', [L.pct(98, 1789), L.pct(0, 10), L.pct(1, 5000), L.pct(5, 0)], ['5.5%', '0%', '<0.1%', '0%']);
+{
+  const doc = {
+    people: { length: 100 },
+    countries: [{ q: 'US', name: 'US', n: 60 }, { q: 'DE', name: 'DE', n: 10 }, { q: 'AT', name: 'AT', n: 12 }, { q: 'XX', name: 'XX', n: 3 }, { q: 'NO', name: 'NO', n: 15 }],
+    alt: { people: 1000, n: { US: 800, DE: 20, AT: 60, XX: 1 } },
+  };
+  const o = L.overRepresented(doc);
+  eq('over-represented: ratio order, none-elsewhere first, under-min and under-1 dropped', o.map((x) => x.q), ['NO', 'DE', 'AT']);
+  eq('ratio is share over share', o[1].ratio, 5);
+  eq('ratio labels', [L.ratioLabel(Infinity, 'worked'), L.ratioLabel(2)], ['none who worked here', '2.0×']);
+  eq('top cuts', L.overRepresented(doc, { top: 1 }).length, 1);
+}
+
 // --- the shipped data ---------------------------------------------------------------
 const here = fileURLToPath(new URL('.', import.meta.url));
 const D = JSON.parse(readFileSync(here + 'data/roots.json', 'utf8'));
+const F = JSON.parse(readFileSync(here + 'data/faculty.json', 'utf8'));
 ok('thousands of people', D.people.length > 4500, D.people.length);
 ok('over 100 countries', D.countries.length > 100);
 eq('counts.people matches the list', D.counts.people, D.people.length);
@@ -87,6 +108,25 @@ ok('Singapore is listed though off the 110m map', byQ.get('Q334') && !byQ.get('Q
   ok('Tokyo projects east of Palo Alto and into Asia', tokyo && tokyo[6] > vw * 0.8, JSON.stringify(tokyo && [tokyo[6], tokyo[7]]));
 }
 ok('every mapped country path is a closed path', D.countries.every((c) => c.d == null || /^M[\d.,L-]+Z/.test(c.d)));
+
+// --- the worked-here view, and the cross-links between the two files -------------------
+ok('worked view: over a thousand people', F.people.length > 1000, F.people.length);
+eq('views are labelled', [D.view_name, F.view_name], ['studied', 'worked']);
+eq('worked view counts.people matches the list', F.counts.people, F.people.length);
+{
+  let fOk = true;
+  for (const c of F.countries) if (L.filterPeople(F.people, { country: c.q }).length !== c.n) fOk = false;
+  ok('worked view: every country count equals its people', fOk);
+}
+eq('each file carries the other file\'s total', [D.alt.people, F.alt.people], [F.people.length, D.people.length]);
+ok('each file carries the other file\'s counts exactly',
+  F.countries.every((c) => D.alt.n[c.q] === c.n) && D.countries.every((c) => F.alt.n[c.q] === c.n)
+  && Object.keys(D.alt.n).length === F.countries.length && Object.keys(F.alt.n).length === D.countries.length);
+eq('both views share one map', F.view, D.view);
+// The finding the view exists to show, measured 2026-10-26: those who worked here were
+// born abroad far more often than those who studied here, Germany most of all.
+ok('worked view is less American than the studied view', F.countries[0].n / F.people.length < D.countries[0].n / D.people.length - 0.1);
+ok('Germany is over-represented among those who worked here', L.overRepresented(F).some((x) => x.q === 'Q183' && x.ratio > 2));
 
 console.log(`${fail ? 'FAILED' : 'ok'}: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -1,6 +1,6 @@
 import {
   P, BREAKS, binOf, binLabel, filterPeople, sortPeople, personUrl, isWikipedia, centroid,
-  encodeState, decodeState, lifeLine,
+  encodeState, decodeState, lifeLine, otherView, pct, overRepresented, ratioLabel,
 } from './roots-logic.js';
 
 const $ = (id) => document.getElementById(id);
@@ -8,7 +8,10 @@ const SVGNS = 'http://www.w3.org/2000/svg';
 const PAGE = 60;
 let D = null;
 let byQ = new Map();
-const state = { country: null, q: '', sort: 'old', shown: PAGE };
+const cache = {};
+const FILES = { studied: 'data/roots.json', worked: 'data/faculty.json' };
+const VERB = { studied: 'studied', worked: 'worked' };
+const state = { view: 'studied', country: null, q: '', sort: 'old', shown: PAGE };
 
 const el = (tag, attrs = {}) => {
   const n = document.createElementNS(SVGNS, tag);
@@ -20,7 +23,7 @@ const fmt = (n) => n.toLocaleString('en-US');
 function drawMap() {
   const [w, h] = D.view;
   const svg = el('svg', { viewBox: `0 0 ${w} ${h}`, role: 'img',
-    'aria-label': `World map shaded by how many Stanford-educated people were born in each country` });
+    'aria-label': `World map shaded by how many people who ${VERB[state.view]} at Stanford were born in each country` });
   for (const c of D.empty) svg.append(el('path', { d: c.d, class: 'c e' }));
   const tiny = [];
   for (const c of D.countries) {
@@ -47,7 +50,7 @@ function drawMap() {
   });
   svg.addEventListener('pointerover', (e) => {
     const q = e.target.closest('[data-q]')?.dataset.q;
-    if (q) $('hover').textContent = `${byQ.get(q).name}: ${fmt(byQ.get(q).n)} ${byQ.get(q).n === 1 ? 'person' : 'people'}`;
+    if (q) $('hover').textContent = compare(byQ.get(q));
   });
   svg.addEventListener('pointerleave', () => { $('hover').textContent = hoverDefault(); });
   $('map').replaceChildren(svg);
@@ -71,6 +74,31 @@ function drawMap() {
   kd.innerHTML = '<span class="dotk"></span>';
   kd.append('birthplaces in the chosen country');
   lg.append(kd);
+}
+
+// "Germany: 104 people · 5.9% of those who worked here, 1.7% of those who studied here"
+function compare(c) {
+  const there = D.alt.n[c.q] || 0;
+  return `${c.name}: ${fmt(c.n)} ${c.n === 1 ? 'person' : 'people'} · ${pct(c.n, D.people.length)} of those who ` +
+    `${VERB[state.view]} here, ${pct(there, D.alt.people)} of those who ${VERB[otherView(state.view)]} here`;
+}
+
+function drawContrast() {
+  const o = overRepresented(D);
+  const p = $('contrast');
+  p.replaceChildren();
+  if (!o.length) return;
+  const b = document.createElement('b');
+  b.textContent = `More common among those who ${VERB[state.view]} here than those who ${VERB[otherView(state.view)]} here: `;
+  p.append(b);
+  o.forEach((x, i) => {
+    const a = document.createElement('button');
+    a.type = 'button'; a.className = 'chip'; a.dataset.q = x.q;
+    a.textContent = `${x.name} ${ratioLabel(x.ratio, VERB[otherView(state.view)])}`;
+    a.title = compare(byQ.get(x.q));
+    p.append(a);
+    if (i < o.length - 1) p.append(' ');
+  });
 }
 
 const hoverDefault = () => (state.country
@@ -142,31 +170,74 @@ function select(q) {
 
 function drawTable() {
   const t = document.createElement('table');
-  t.innerHTML = '<tr><th>Country</th><th class="r">People</th><th>On the map</th></tr>';
+  t.innerHTML = `<tr><th>Country</th><th class="r">People</th><th class="r">Share</th>` +
+    `<th class="r">Share of those who ${VERB[otherView(state.view)]} here</th><th>On the map</th></tr>`;
   for (const c of D.countries) {
     const tr = document.createElement('tr');
     const td = document.createElement('td'); td.textContent = c.name;
     const n = document.createElement('td'); n.className = 'r'; n.textContent = fmt(c.n);
+    const s1 = document.createElement('td'); s1.className = 'r'; s1.textContent = pct(c.n, D.people.length);
+    const s2 = document.createElement('td'); s2.className = 'r'; s2.textContent = pct(D.alt.n[c.q] || 0, D.alt.people);
     const m = document.createElement('td'); m.textContent = c.d ? 'outline' : 'marker or off-map';
-    tr.append(td, n, m); t.append(tr);
+    tr.append(td, n, s1, s2, m); t.append(tr);
   }
   $('table').replaceChildren(t);
 }
 
-async function main() {
-  try { D = await (await fetch('data/roots.json')).json(); }
-  catch { $('sub').textContent = 'Could not load the data. Try reloading.'; return; }
-  byQ = new Map(D.countries.map((c) => [c.q, c]));
-  $('sub').textContent = `Where ${fmt(D.people.length)} people Wikidata lists as educated at Stanford were born: ` +
-    `${D.countries.length} countries. Tap one to meet everyone from it.`;
+function drawViewControls() {
+  for (const b of document.querySelectorAll('#views button')) b.setAttribute('aria-pressed', String(b.dataset.v === state.view));
+  const n = fmt(D.people.length);
+  $('sub').textContent = state.view === 'worked'
+    ? `Where ${n} people Wikidata lists as having worked at Stanford were born: ${D.countries.length} countries. ` +
+      'Mostly professors and researchers, but coaches and administrators count too. Tap a country to meet them.'
+    : `Where ${n} people Wikidata lists as educated at Stanford were born: ` +
+      `${D.countries.length} countries. Tap one to meet everyone from it.`;
   const sel = $('country');
-  const all = document.createElement('option'); all.value = ''; all.textContent = `Everywhere (${fmt(D.people.length)})`;
+  sel.replaceChildren();
+  const all = document.createElement('option'); all.value = ''; all.textContent = `Everywhere (${n})`;
   sel.append(all);
   for (const c of D.countries) {
     const o = document.createElement('option'); o.value = c.q; o.textContent = `${c.name} (${fmt(c.n)})`; sel.append(o);
   }
-  Object.assign(state, decodeState(location.search, new Set(byQ.keys())));
-  drawMap(); drawTable(); sync(); drawSelection(); drawList();
+}
+
+async function load(view) {
+  cache[view] ||= fetch(FILES[view]).then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); });
+  try { return await cache[view]; } catch (e) { delete cache[view]; throw e; }
+}
+
+// Swap the whole page to one view. A country the new view has nobody from is dropped
+// rather than left selected on an empty list.
+async function show(view) {
+  let doc;
+  try { doc = await load(view); }
+  catch { $('sub').textContent = 'Could not load the data. Try reloading.'; return false; }
+  D = doc; state.view = view;
+  byQ = new Map(D.countries.map((c) => [c.q, c]));
+  if (state.country && !byQ.has(state.country)) state.country = null;
+  state.shown = PAGE;
+  drawViewControls(); drawMap(); drawContrast(); drawTable(); sync(); drawSelection(); drawList();
+  return true;
+}
+
+async function main() {
+  // The country in the URL is checked against the view the URL names, so ?v=worked&c=...
+  // keeps a country only that view has.
+  const want = decodeState(location.search, new Set()).view;
+  let doc;
+  try { doc = await load(want); }
+  catch { $('sub').textContent = 'Could not load the data. Try reloading.'; return; }
+  Object.assign(state, decodeState(location.search, new Set(doc.countries.map((c) => c.q))));
+  await show(want);
+  const sel = $('country');
+  $('views').addEventListener('click', (e) => {
+    const v = e.target.closest('button[data-v]')?.dataset.v;
+    if (v && v !== state.view) show(v);
+  });
+  $('contrast').addEventListener('click', (e) => {
+    const q = e.target.closest('button[data-q]')?.dataset.q;
+    if (q) select(q);
+  });
   sel.addEventListener('change', () => select(sel.value || null));
   $('sort').addEventListener('change', () => { state.sort = $('sort').value; state.shown = PAGE; sync(); drawList(); });
   let t;

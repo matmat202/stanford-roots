@@ -63,10 +63,40 @@ export function centroid(people, country) {
   return n ? [sx / n, sy / n] : null;
 }
 
-// ?c=Q668&q=physicist&sort=new. Unknown values fall back rather than throw.
+/* Two views of the map: who studied at Stanford (P69) and who worked there (P108). Each
+ * data file carries the other view's counts as `alt`, so a country can be compared across
+ * views without loading both files. */
+export const VIEWS = ['studied', 'worked'];
+export const otherView = (v) => (v === 'worked' ? 'studied' : 'worked');
+
+// "5.5%"; a non-zero share too small for one decimal says so rather than printing 0.0%.
+export function pct(n, total) {
+  if (!total || !n) return '0%';
+  const x = (100 * n) / total;
+  return x < 0.05 ? '<0.1%' : `${x.toFixed(1)}%`;
+}
+
+/* Countries whose share of this view beats their share of the other one, biggest ratio
+ * first. `min` people in this view keeps 2-against-1 noise out of the headline; a country
+ * the other view has nobody from ranks first, as `ratio: Infinity`. */
+export function overRepresented(doc, { min = 10, top = 5 } = {}) {
+  const total = doc.people.length, alt = doc.alt, out = [];
+  for (const c of doc.countries) {
+    if (c.n < min) continue;
+    const there = alt.n[c.q] || 0;
+    const ratio = there ? (c.n / total) / (there / alt.people) : Infinity;
+    if (ratio > 1) out.push({ q: c.q, name: c.name, n: c.n, there, ratio });
+  }
+  out.sort((a, b) => b.ratio - a.ratio || b.n - a.n || (a.name < b.name ? -1 : 1));
+  return out.slice(0, top);
+}
+export const ratioLabel = (r, other = 'studied') => (r === Infinity ? `none who ${other} here` : `${r.toFixed(1)}×`);
+
+// ?v=worked&c=Q668&q=physicist&sort=new. Unknown values fall back rather than throw.
 const SORTS = ['old', 'new', 'az'];
-export function encodeState({ country, q, sort }) {
+export function encodeState({ view, country, q, sort }) {
   const p = new URLSearchParams();
+  if (view === 'worked') p.set('v', 'worked');
   if (country) p.set('c', country);
   if (q && q.trim()) p.set('q', q.trim());
   if (sort && sort !== 'old') p.set('sort', sort);
@@ -78,6 +108,7 @@ export function decodeState(search, knownCountries) {
   const c = p.get('c');
   const sort = p.get('sort');
   return {
+    view: p.get('v') === 'worked' ? 'worked' : 'studied',
     country: c && knownCountries.has(c) ? c : null,
     q: (p.get('q') || '').slice(0, 80),
     sort: SORTS.includes(sort) ? sort : 'old',
