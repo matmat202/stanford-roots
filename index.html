@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Stanford Roots · where Stanford's people were born</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%238c1515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='none' stroke='%23fff' stroke-width='2.5'/%3E%3Cpath d='M7 16h18M16 7c-4 5-4 13 0 18M16 7c4 5 4 13 0 18' fill='none' stroke='%23fff' stroke-width='2'/%3E%3C/svg%3E">
+<meta name="theme-color" content="#8c1515">
+<meta name="description" content="A world map of where 5,000+ Stanford-educated people were born, from Wikidata. Pick a country and meet everyone from it.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://matmat202.github.io/stanford-roots/">
+<meta property="og:title" content="Stanford Roots">
+<meta property="og:description" content="Where 5,000+ Stanford-educated people were born. Pick a country.">
+<meta name="twitter:card" content="summary">
+<style>
+:root{color-scheme:light;--ground:#faf8f5;--card:#fff;--ink:#1f1b18;--ink-2:#5c544e;--ink-3:#6e655e;
+  --line:#e5dfd8;--accent:#8c1515;--none:#ece6de;--edge:#fff;
+  --b0:#86b6ef;--b1:#5598e7;--b2:#2a78d6;--b3:#1c5cab;--b4:#104281;
+  --dot:#8c1515;
+  --f-ui:system-ui,-apple-system,"Segoe UI",sans-serif}
+@media (prefers-color-scheme:dark){:root{color-scheme:dark;--ground:#161311;--card:#211c19;--ink:#efe9e3;
+  --ink-2:#b2a89f;--ink-3:#a1968c;--line:#352e29;--accent:#e36a63;--none:#2f2925;--edge:#211c19;
+  --b0:#184f95;--b1:#256abf;--b2:#3987e5;--b3:#6da7ec;--b4:#b7d3f6;
+  --dot:#ff8a80}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--f-ui);font-size:15px}
+main{max-width:900px;margin:0 auto;padding:16px}
+h1{font-size:24px;margin:4px 0 2px}h1 .red{color:var(--accent)}
+.sub{color:var(--ink-2);font-size:13px;margin:0 0 14px;line-height:1.45}
+a{color:var(--accent)}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px}
+#map svg{display:block;width:100%;height:auto;touch-action:manipulation}
+.c{stroke:var(--edge);stroke-width:.5;cursor:pointer}
+.c:hover{stroke:var(--ink);stroke-width:1}
+.c.e{fill:var(--none);cursor:default}
+.c.e:hover{stroke:var(--edge);stroke-width:.5}
+.c.sel{stroke:var(--accent);stroke-width:1.6}
+.tiny{stroke:var(--edge);stroke-width:1;cursor:pointer}
+.tiny.sel{stroke:var(--accent);stroke-width:2}
+.pt{fill:var(--dot);stroke:var(--card);stroke-width:.6;pointer-events:none}
+.legend{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;font-size:12px;color:var(--ink-2);margin:8px 4px 2px}
+.legend .k{display:inline-flex;align-items:center;gap:5px}
+.legend .sw{width:16px;height:10px;border-radius:2px;display:inline-block}
+.legend .dotk{width:7px;height:7px;border-radius:50%;background:var(--dot);display:inline-block}
+.tipbox{font-size:13px;color:var(--ink-2);margin:4px 4px 0;min-height:1.3em}
+.controls{display:grid;grid-template-columns:1.2fr 1fr auto;gap:8px;margin:14px 0 8px}
+@media (max-width:620px){.controls{grid-template-columns:1fr auto}.controls .q{grid-column:1 / -1;order:3}}
+select,input{font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);min-width:0;width:100%}
+label.v{position:absolute;left:-9999px}
+.head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:6px 2px 6px}
+.head h2{font-size:17px;margin:0}
+.head .n{font-size:13px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+ol.people{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+ol.people li{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px 12px}
+ol.people .nm{font-weight:600;text-decoration:none;color:var(--ink)}
+ol.people .nm:hover{color:var(--accent);text-decoration:underline}
+ol.people .src{font-size:11px;color:var(--ink-3);margin-left:6px}
+ol.people .d{font-size:13px;color:var(--ink-2);margin-top:2px}
+ol.people .l{font-size:12px;color:var(--ink-3);margin-top:2px}
+.more{font:inherit;font-weight:600;margin:10px 0 0;padding:10px 16px;border:1px solid var(--accent);border-radius:10px;background:var(--card);color:var(--accent);cursor:pointer;width:100%}
+.empty{color:var(--ink-2);font-size:14px;padding:14px 4px}
+details{margin:14px 0 0}
+summary{cursor:pointer;font-size:13px;color:var(--ink-2)}
+.tbl table{border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums;margin-top:6px;width:100%}
+.tbl th,.tbl td{padding:3px 8px;border-bottom:1px solid var(--line);text-align:left}
+.tbl td.r,.tbl th.r{text-align:right}
+footer{font-size:12px;color:var(--ink-2);line-height:1.5;margin:18px 2px 8px}
+</style>
+</head>
+<body>
+<main>
+  <h1>Stanford <span class="red">Roots</span></h1>
+  <p class="sub" id="sub">Where the people Wikidata lists as educated at Stanford were born. Tap a country to meet everyone from it.</p>
+
+  <section class="card" aria-label="World map">
+    <div id="map"></div>
+    <div class="legend" id="legend"></div>
+    <p class="tipbox" id="hover" aria-live="polite"></p>
+  </section>
+
+  <div class="controls">
+    <div><label class="v" for="country">Country</label><select id="country"></select></div>
+    <div class="q"><label class="v" for="q">Search</label><input id="q" type="search" autocomplete="off" placeholder="Search: physicist, Lagos, Nobel…"></div>
+    <div><label class="v" for="sort">Sort</label><select id="sort">
+      <option value="old">Oldest first</option><option value="new">Newest first</option><option value="az">A–Z</option>
+    </select></div>
+  </div>
+
+  <div class="head"><h2 id="listTitle">Everyone</h2><span class="n" id="listCount"></span></div>
+  <ol class="people" id="people"></ol>
+  <button class="more" id="more" type="button" hidden>Show more</button>
+
+  <details>
+    <summary>Every country, as a table</summary>
+    <div class="tbl" id="table"></div>
+  </details>
+
+  <footer id="foot">Data: <a href="https://www.wikidata.org/">Wikidata</a> (CC0), people with "educated at" Stanford
+    or one of its schools and a recorded birthplace. Wikidata is volunteer-edited, so it over-represents the famous and
+    the American, someone missing here may simply have no birthplace recorded, and a few records are plainly wrong (an 1848-born sculptor did not study at a university founded in 1891). Fix them on Wikidata and the next rebuild picks it up. Births before 1891 are often real: Stanford's medical school grew out of Cooper Medical College. Map: Natural Earth via
+    <a href="https://github.com/topojson/world-atlas">world-atlas</a>. Built by Claude for
+    <a href="https://matmat202.github.io/">matmat202</a>. Not affiliated with Stanford University.</footer>
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>
