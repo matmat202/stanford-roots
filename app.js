@@ -2,6 +2,7 @@ import {
   P, BREAKS, binOf, binLabel, filterPeople, sortPeople, personUrl, isWikipedia, centroid,
   encodeState, decodeState, lifeLine, otherView, pct, overRepresented, ratioLabel,
   US, overRepresentedStates, STATE_BREAKS,
+  RADII, DEFAULT_KM, N, matchPlaces, placeLabel, placeByLabel, nearPeople, nearest, kmLabel, project,
 } from './roots-logic.js';
 
 const $ = (id) => document.getElementById(id);
@@ -12,7 +13,10 @@ let byQ = new Map();
 const cache = {};
 const FILES = { studied: 'data/roots.json', worked: 'data/faculty.json' };
 const VERB = { studied: 'studied', worked: 'worked' };
-const state = { view: 'studied', country: null, st: null, q: '', sort: 'old', shown: PAGE };
+const state = { view: 'studied', country: null, st: null, q: '', sort: 'old', shown: PAGE, near: null, km: DEFAULT_KM };
+// The "Born near" gazetteer (1.2 MB gzipped), fetched the first time anyone types a town.
+let nearDoc = null;
+let ND = null;
 // US state outlines, fetched the first time anyone picks the US (108 KB nobody else pays).
 let usGeo = null;
 let stName = new Map();
@@ -105,9 +109,11 @@ function drawContrast() {
   });
 }
 
-const hoverDefault = () => (state.country
-  ? `Showing ${byQ.get(state.country).name}. Tap it again, or pick “Everywhere”, to clear.`
-  : 'Tap a country.');
+const hoverDefault = () => (state.near
+  ? `Showing everyone born within ${state.km} km of ${state.near.label}. Clear the box to go back.`
+  : state.country
+    ? `Showing ${byQ.get(state.country).name}. Tap it again, or pick “Everywhere”, to clear.`
+    : 'Tap a country, or type a hometown below.');
 
 function drawSelection() {
   for (const n of document.querySelectorAll('#map [data-q]')) n.classList.toggle('sel', n.dataset.q === state.country);
@@ -126,11 +132,33 @@ function drawSelection() {
     // Bring the selected outline above its neighbours so its stroke is not cut off.
     const sel = document.querySelector(`#map path[data-q="${state.country}"]`);
     if (sel) g.before(sel);
+  } else if (state.near && ND) {
+    const seen = new Set();
+    for (const { p } of nearList()) {
+      const b = ND.born[p[P.Q]];
+      const key = `${b[0]},${b[1]}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const [x, y] = project(b[1], b[0]);
+      g.append(el('circle', { cx: x.toFixed(1), cy: y.toFixed(1), r: 1.8, class: 'pt' }));
+    }
+    const [hx, hy] = project(state.near.lon, state.near.lat);
+    // The radius drawn to scale where it can be seen (200 km is ~6 px on this map).
+    const rpx = Math.abs(project(state.near.lon, state.near.lat + state.km / 111.2)[1] - hy);
+    if (rpx > 5) g.append(el('circle', { cx: hx.toFixed(1), cy: hy.toFixed(1), r: rpx.toFixed(1), class: 'ring' }));
+    g.append(el('circle', { cx: hx.toFixed(1), cy: hy.toFixed(1), r: 4, class: 'home' }));
   }
   $('hover').textContent = hoverDefault();
 }
 
+// Everyone matching the search born within the radius, nearest first, as { p, d }.
+function nearList() {
+  return nearPeople(filterPeople(D.people, { q: state.q }), ND.born, [state.near.lat, state.near.lon], state.km);
+}
+
 function drawList() {
+  if (state.near && ND) { drawNearList(); return; }
+  $('sort').disabled = false;
   const list = sortPeople(filterPeople(D.people, state), state.sort);
   const c = state.country && byQ.get(state.country);
   const where = state.st ? stName.get(state.st) : c && c.name;
@@ -144,18 +172,46 @@ function drawList() {
     li.textContent = state.q ? `Nobody matches “${state.q}”${where ? ` in ${where}` : ''}.` : 'Nobody recorded.';
     ol.append(li);
   }
-  for (const p of list.slice(0, state.shown)) {
+  for (const p of list.slice(0, state.shown)) ol.append(personItem(p));
+  const more = $('more');
+  more.hidden = list.length <= state.shown;
+  more.textContent = `Show more (${fmt(list.length - state.shown)} left)`;
+}
+
+function personItem(p, d = null) {
+  const li = document.createElement('li');
+  const a = document.createElement('a');
+  a.className = 'nm'; a.href = personUrl(p[P.URL]); a.target = '_blank'; a.rel = 'noopener';
+  a.textContent = p[P.NAME];
+  const src = document.createElement('span');
+  src.className = 'src'; src.textContent = isWikipedia(p[P.URL]) ? 'Wikipedia' : 'Wikidata';
+  li.append(a, src);
+  if (p[P.DESC]) { const dv = document.createElement('div'); dv.className = 'd'; dv.textContent = p[P.DESC]; li.append(dv); }
+  const l = document.createElement('div'); l.className = 'l'; l.textContent = lifeLine(p);
+  if (d != null) { const k = document.createElement('span'); k.className = 'km'; k.textContent = ` · ${kmLabel(d)} away`; l.append(k); }
+  li.append(l);
+  return li;
+}
+
+// The list for a hometown: nearest first, so the sort menu sits out. Nobody in range
+// still answers the question: the one person born nearest, however far.
+function drawNearList() {
+  $('sort').disabled = true;
+  const list = nearList();
+  $('listTitle').textContent = `Born within ${state.km} km of ${state.near.label}`;
+  $('listCount').textContent = `${fmt(list.length)} ${list.length === 1 ? 'person' : 'people'}`;
+  const ol = $('people');
+  ol.replaceChildren();
+  if (!list.length) {
     const li = document.createElement('li');
-    const a = document.createElement('a');
-    a.className = 'nm'; a.href = personUrl(p[P.URL]); a.target = '_blank'; a.rel = 'noopener';
-    a.textContent = p[P.NAME];
-    const src = document.createElement('span');
-    src.className = 'src'; src.textContent = isWikipedia(p[P.URL]) ? 'Wikipedia' : 'Wikidata';
-    li.append(a, src);
-    if (p[P.DESC]) { const d = document.createElement('div'); d.className = 'd'; d.textContent = p[P.DESC]; li.append(d); }
-    const l = document.createElement('div'); l.className = 'l'; l.textContent = lifeLine(p); li.append(l);
+    li.className = 'empty';
+    const best = nearest(filterPeople(D.people, { q: state.q }), ND.born, [state.near.lat, state.near.lon]);
+    li.textContent = `Nobody who ${VERB[state.view]} here${state.q ? ` and matches “${state.q}”` : ''} was born within ${state.km} km.` +
+      (best ? ` The nearest, ${kmLabel(best.d)} away:` : '');
     ol.append(li);
+    if (best) ol.append(personItem(best.p, best.d));
   }
+  for (const { p, d } of list.slice(0, state.shown)) ol.append(personItem(p, d));
   const more = $('more');
   more.hidden = list.length <= state.shown;
   more.textContent = `Show more (${fmt(list.length - state.shown)} left)`;
@@ -164,12 +220,14 @@ function drawList() {
 function sync() {
   history.replaceState(null, '', location.pathname + encodeState(state));
   $('country').value = state.country || '';
+  $('km').value = String(state.km);
   if (usGeo) $('state').value = state.st || '';
   $('sort').value = state.sort;
   if ($('q').value !== state.q) $('q').value = state.q;
 }
 
 function select(q) {
+  if (q) clearNear();
   state.country = q;
   if (q !== US) state.st = null;
   state.shown = PAGE;
@@ -180,6 +238,105 @@ function selectState(s) {
   state.st = s;
   state.shown = PAGE;
   sync(); drawSelection(); drawStateSelection(); drawList();
+}
+
+async function loadNear() {
+  nearDoc ||= fetch('data/near.json').then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); });
+  try { ND = await nearDoc; return ND; }
+  catch (e) { nearDoc = null; throw e; }
+}
+
+function clearNear() {
+  state.near = null;
+  $('near').value = '';
+  closeOpts();
+}
+
+function pickPlace(pl) {
+  state.near = { label: placeLabel(ND, pl), lat: pl[N.LAT], lon: pl[N.LON] };
+  state.country = null; state.st = null;
+  state.shown = PAGE;
+  $('near').value = state.near.label;
+  closeOpts();
+  sync(); drawSelection(); drawList(); drawUS();
+}
+
+let opts = [], active = -1;
+function closeOpts() {
+  opts = []; active = -1;
+  $('nearList').hidden = true;
+  $('near').setAttribute('aria-expanded', 'false');
+  $('near').removeAttribute('aria-activedescendant');
+}
+function drawOpts() {
+  const ul = $('nearList');
+  ul.replaceChildren();
+  opts.forEach((pl, i) => {
+    const li = document.createElement('li');
+    li.id = `opt${i}`; li.setAttribute('role', 'option'); li.dataset.i = i;
+    li.setAttribute('aria-selected', String(i === active));
+    li.textContent = placeLabel(ND, pl);
+    ul.append(li);
+  });
+  if (!opts.length) {
+    const li = document.createElement('li'); li.className = 'none';
+    li.textContent = 'No town by that name. Try a bigger place nearby, or add “, country”.';
+    ul.append(li);
+  }
+  ul.hidden = false;
+  $('near').setAttribute('aria-expanded', 'true');
+  if (active >= 0) { $('near').setAttribute('aria-activedescendant', `opt${active}`); $(`opt${active}`).scrollIntoView({ block: 'nearest' }); }
+  else $('near').removeAttribute('aria-activedescendant');
+}
+
+async function onNearInput() {
+  const v = $('near').value;
+  if (!v.trim()) {
+    closeOpts();
+    if (state.near) { state.near = null; state.shown = PAGE; sync(); drawSelection(); drawList(); }
+    return;
+  }
+  try { await loadNear(); }
+  catch { opts = []; $('nearList').hidden = false; $('nearList').textContent = 'Could not load the list of towns. Try reloading.'; return; }
+  if ($('near').value !== v) return; // typed on while loading
+  opts = matchPlaces(ND, v); active = opts.length ? 0 : -1;
+  drawOpts();
+}
+
+function wireNear() {
+  const box = $('near');
+  box.addEventListener('focus', () => { loadNear().catch(() => {}); });
+  box.addEventListener('input', onNearInput);
+  box.addEventListener('keydown', (e) => {
+    if ($('nearList').hidden) { if (e.key === 'ArrowDown' && box.value.trim()) { onNearInput(); e.preventDefault(); } return; }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (!opts.length) return;
+      active = (active + (e.key === 'ArrowDown' ? 1 : opts.length - 1)) % opts.length;
+      drawOpts(); e.preventDefault();
+    } else if (e.key === 'Enter') {
+      if (active >= 0 && opts[active]) pickPlace(opts[active]);
+      e.preventDefault();
+    } else if (e.key === 'Escape') {
+      closeOpts();
+      if (state.near) box.value = state.near.label;
+      e.preventDefault();
+    }
+  });
+  box.addEventListener('blur', () => setTimeout(() => {
+    if (document.activeElement === box) return;
+    closeOpts();
+    if (state.near && box.value.trim()) box.value = state.near.label; // a half-typed edit does not stick
+  }, 150));
+  $('nearList').addEventListener('mousedown', (e) => e.preventDefault()); // keep focus in the box
+  $('nearList').addEventListener('click', (e) => {
+    const i = e.target.closest('li[data-i]')?.dataset.i;
+    if (i != null && opts[i]) pickPlace(opts[i]);
+  });
+  $('km').addEventListener('change', () => {
+    state.km = Number($('km').value) || DEFAULT_KM;
+    state.shown = PAGE;
+    sync(); drawSelection(); drawList();
+  });
 }
 
 async function loadUS() {
@@ -355,7 +512,18 @@ async function main() {
   catch { $('sub').textContent = 'Could not load the data. Try reloading.'; return; }
   Object.assign(state, decodeState(location.search, new Set(doc.countries.map((c) => c.q)),
     new Set(Object.keys(doc.states.n))));
+  const { nearLabel } = state;
+  delete state.nearLabel;
   await show(want);
+  wireNear();
+  if (nearLabel) {
+    $('near').value = nearLabel;
+    try {
+      await loadNear();
+      const pl = placeByLabel(ND, nearLabel);
+      if (pl) pickPlace(pl); else onNearInput(); // an unknown town opens its suggestions instead
+    } catch { /* the box says why when it is next used */ }
+  }
   const sel = $('country');
   $('views').addEventListener('click', (e) => {
     const v = e.target.closest('button[data-v]')?.dataset.v;

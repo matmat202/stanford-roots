@@ -33,6 +33,16 @@ no state. The two views differ here as well: California is about a third of the 
 who studied at Stanford but a seventh of those who worked there, and New York is the
 other way round.
 
+## Born near
+
+Type a hometown in **Born near** and pick it from the suggestions to see everyone born
+within 25, 50, 100 or 250 km of it, nearest first, whatever their birthplace is called.
+Someone born in Menlo Park turns up for Palo Alto. The towns are
+[GeoNames](https://www.geonames.org/) (CC BY 4.0) places of 5,000 or more people, plus
+every birthplace on the map. The link keeps the town, so `?near=Palo Alto, California,
+United States` opens on it. Someone recorded only as born "in Austria" or "in California"
+has no point to measure from and is near nowhere.
+
 ## What it cannot tell you
 
 Wikidata is volunteer-edited. It over-represents the famous and the American, and someone

@@ -55,7 +55,7 @@ eq('centroid ignores pointless people', L.centroid([[...mk('a', 'a', '', 1, '', 
 const known = new Set(['Q30', 'Q668']);
 eq('state encodes', L.encodeState({ country: 'Q668', q: ' physicist ', sort: 'new' }), '?c=Q668&q=physicist&sort=new');
 eq('default state is empty', L.encodeState({ country: null, q: '', sort: 'old' }), '');
-eq('state round-trips', L.decodeState(L.encodeState({ country: 'Q668', q: 'a b', sort: 'az' }), known), { view: 'studied', country: 'Q668', st: null, q: 'a b', sort: 'az' });
+eq('state round-trips', L.decodeState(L.encodeState({ country: 'Q668', q: 'a b', sort: 'az' }), known), { view: 'studied', country: 'Q668', st: null, q: 'a b', sort: 'az', nearLabel: '', km: 50 });
 eq('worked view encodes first', L.encodeState({ view: 'worked', country: 'Q668', q: '', sort: 'old' }), '?v=worked&c=Q668');
 eq('studied view is the default and stays out of the url', L.encodeState({ view: 'studied', country: null, q: '', sort: 'old' }), '');
 eq('worked view round-trips', L.decodeState('?v=worked', known).view, 'worked');
@@ -65,6 +65,50 @@ eq('unknown country ignored', L.decodeState('?c=Q999999', known).country, null);
 eq('unknown sort falls back', L.decodeState('?sort=evil', known).sort, 'old');
 eq('life line', L.lifeLine(people[0]), 'b. 1950 · São Paulo');
 eq('life line without year', L.lifeLine(people[2]), 'Taipei');
+
+// --- born near (a synthetic gazetteer, out of order where order matters) -----------
+{
+  const nd = { a1: ['', 'Illinois', 'Massachusetts', 'Missouri', 'Lagos'], places: [
+    ['Lagos', 'NG', 4, 6.45, 3.39],
+    ['Springfield', 'US', 3, 37.22, -93.3],
+    ['Springfield', 'US', 2, 42.1, -72.59],
+    ['Springfield', 'US', 1, 39.8, -89.64],
+    ['Springdale', 'US', 3, 36.19, -94.13],
+    ['São Paulo', 'BR', 0, -23.55, -46.64, 'Sao Paulo'],
+    ['Lagos', 'PT', 0, 37.1, -8.67],
+  ] };
+  const lab = (l) => l.map((pl) => L.placeLabel(nd, pl));
+  eq('exact names first, in file order (biggest first)', lab(L.matchPlaces(nd, 'springfield')).slice(0, 3),
+    ['Springfield, Missouri, United States', 'Springfield, Massachusetts, United States', 'Springfield, Illinois, United States']);
+  eq('a prefix comes after every exact match', lab(L.matchPlaces(nd, 'spring')).at(-1), 'Springdale, Missouri, United States');
+  eq('"town, ST" narrows by postal code', lab(L.matchPlaces(nd, 'springfield, il')), ['Springfield, Illinois, United States']);
+  eq('"town, state" narrows by admin1 prefix', lab(L.matchPlaces(nd, 'Springfield, mass')), ['Springfield, Massachusetts, United States']);
+  eq('"town, country" narrows by country name', lab(L.matchPlaces(nd, 'lagos, portugal')), ['Lagos, Portugal']);
+  eq('"town, cc" narrows by country code, and a region named like its town is said once', lab(L.matchPlaces(nd, 'lagos, ng')), ['Lagos, Nigeria']);
+  eq('accents fold, and the ascii name matches', [lab(L.matchPlaces(nd, 'sao paulo')), lab(L.matchPlaces(nd, 'SÃO'))], [['São Paulo, Brazil'], ['São Paulo, Brazil']]);
+  const dc = { a1: ['', 'Washington, D.C.'], places: [['Washington, D.C.', 'US', 0, 38.9, -77.04], ['Washington', 'US', 1, 38.9, -77.03]] };
+  const labDc = (l) => l.map((pl) => L.placeLabel(dc, pl));
+  eq('a name with its own comma is typed whole', labDc(L.matchPlaces(dc, 'washington, d.c.'))[0], 'Washington, D.C., United States');
+  eq('"DC" and "D.C." are the same postal code', labDc(L.matchPlaces(dc, 'washington, dc')), ['Washington, Washington, D.C., United States']);
+  eq('nothing typed is nothing', L.matchPlaces(nd, '  '), []);
+  eq('a label round-trips to its place', L.placeByLabel(nd, 'Springfield, Illinois, United States')?.[3], 39.8);
+  eq('an unknown label is no place', L.placeByLabel(nd, 'Springfield, Narnia'), null);
+  const born = { Q1: [37.5, -122.2], Q2: [37.44, -122.14], Q3: [38.58, -121.49], Q4: [37.77, -122.42] };
+  const ps = [mk('Q1', 'Cy', '', 1, '', []), mk('Q2', 'Al', '', 1, '', []), mk('Q3', 'Bo', '', 1, '', []), mk('Q4', 'Di', '', 1, '', []), mk('Q9', 'No', '', 1, '', [])];
+  const pa = [37.44, -122.14];
+  eq('near: within the radius, nearest first, no point means never near', L.nearPeople(ps, born, pa, 50).map((x) => x.p[1]), ['Al', 'Cy', 'Di']);
+  eq('near: a wider radius reaches further', L.nearPeople(ps, born, pa, 200).length, 4);
+  eq('nearest outside any radius', L.nearest(ps, born, [30, -122])?.p[1], 'Al');
+  ok('distance: Palo Alto to SF is ~45 km', Math.abs(L.distKm(37.44, -122.14, 37.77, -122.42) - 44.5) < 2, L.distKm(37.44, -122.14, 37.77, -122.42));
+  eq('km labels', [L.kmLabel(0.3), L.kmLabel(44.6)], ['under 1 km', '45 km']);
+  eq('near encodes and replaces the country', L.encodeState({ country: 'Q30', st: 'Q99', near: { label: 'Lagos, Portugal' }, km: 100, q: '', sort: 'old' }), '?near=Lagos%2C+Portugal&km=100');
+  eq('default radius stays out of the url', L.encodeState({ near: { label: 'X' }, km: 50 }), '?near=X');
+  const dn = L.decodeState('?c=Q668&near=Lagos%2C+Portugal&km=100', known);
+  eq('near decodes and wins over a country', [dn.nearLabel, dn.km, dn.country], ['Lagos, Portugal', 100, null]);
+  eq('an unoffered radius falls back', L.decodeState('?near=X&km=7', known).km, 50);
+  const [x, y] = L.project(0, 0);
+  eq('projection centre is the canvas centre', [Math.round(x), Math.round(y)], [480, 234]);
+}
 
 // --- US states (four people, out of order; one with two states, one US-born with none)
 {
@@ -184,6 +228,44 @@ eq('both views share one map', F.view, D.view);
 // born abroad far more often than those who studied here, Germany most of all.
 ok('worked view is less American than the studied view', F.countries[0].n / F.people.length < D.countries[0].n / D.people.length - 0.1);
 ok('Germany is over-represented among those who worked here', L.overRepresented(F).some((x) => x.q === 'Q183' && x.ratio > 2));
+
+// --- the shipped gazetteer ------------------------------------------------------------
+{
+  const N = JSON.parse(readFileSync(here + 'data/near.json', 'utf8'));
+  eq('near.json counts its places', N.counts.places, N.places.length);
+  eq('near.json counts its birth points', N.counts.born, Object.keys(N.born).length);
+  // Everyone drawn as a dot on the map has a birth point, and nobody else does.
+  const dotted = new Set([...D.people, ...F.people].filter((p) => p[L.P.X] != null).map((p) => p[L.P.Q]));
+  ok('a birth point only for people with a map dot, less the vague ones', dotted.size === N.counts.born + N.counts.vague && Object.keys(N.born).every((q) => dotted.has(q)), `${dotted.size} vs ${N.counts.born}+${N.counts.vague}`);
+  // "Austria" and "California" are points at their middle: never near anything.
+  const vagueQ = D.people.filter((p) => p[L.P.PLACE] === 'Austria' || p[L.P.PLACE] === 'California');
+  ok('a whole country or state as birthplace has no birth point', vagueQ.length > 5 && vagueQ.every((p) => !N.born[p[L.P.Q]]), vagueQ.length);
+  ok('Singapore (a city-state) keeps its birth points', D.people.some((p) => p[L.P.PLACE] === 'Singapore' && N.born[p[L.P.Q]]));
+  // The point of shipping birthplaces in the gazetteer: every one of them can be typed,
+  // and typing it finds the person born there.
+  let miss = [], tried = 0;
+  for (const p of D.people) {
+    const b = N.born[p[L.P.Q]];
+    if (!b || !p[L.P.PLACE] || /^Q\d+$/.test(p[L.P.PLACE]) || tried >= 400) continue;
+    tried++;
+    const hit = L.matchPlaces(N, p[L.P.PLACE], 1000).some((pl) => L.distKm(pl[L.N.LAT], pl[L.N.LON], b[0], b[1]) <= 25);
+    if (!hit) miss.push(p[L.P.PLACE]);
+  }
+  ok('400 birthplace labels each find a place within 25 km of the birth point', tried === 400 && !miss.length, miss.slice(0, 5).join('; '));
+  const pa = L.matchPlaces(N, 'palo alto')[0];
+  eq('Palo Alto is in California', L.placeLabel(N, pa), 'Palo Alto, California, United States');
+  ok('dozens were born within 25 km of Palo Alto', L.nearPeople(D.people, N.born, [pa[L.N.LAT], pa[L.N.LON]], 25).length > 30);
+  const sf = L.matchPlaces(N, 'springfield, il');
+  eq('"springfield, il" puts Illinois first', L.placeLabel(N, sf[0]), 'Springfield, Illinois, United States');
+  eq('a real label round-trips', L.placeByLabel(N, L.placeLabel(N, sf[0])), sf[0]);
+  // The measured claim the feature rests on (2026-10-26): a radius finds people a label
+  // search does not. Lagos, Portugal-sized towns aside, a town nobody was born in by name
+  // still has neighbours.
+  const town = L.matchPlaces(N, 'menlo park, california')[0];
+  const byLabel = L.filterPeople(D.people, { q: 'menlo park' }).length;
+  const byRadius = L.nearPeople(D.people, N.born, [town[L.N.LAT], town[L.N.LON]], 25).length;
+  ok('within 25 km of Menlo Park finds more than its label does', byRadius > byLabel * 3, `${byRadius} vs ${byLabel}`);
+}
 
 console.log(`${fail ? 'FAILED' : 'ok'}: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

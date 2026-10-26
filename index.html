@@ -6,7 +6,7 @@
 <title>Stanford Roots · where Stanford's people were born</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%238c1515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='none' stroke='%23fff' stroke-width='2.5'/%3E%3Cpath d='M7 16h18M16 7c-4 5-4 13 0 18M16 7c4 5 4 13 0 18' fill='none' stroke='%23fff' stroke-width='2'/%3E%3C/svg%3E">
 <meta name="theme-color" content="#8c1515">
-<meta name="description" content="A world map of where 5,000+ Stanford-educated people, and 1,700+ who worked there, were born, from Wikidata. Pick a country and meet everyone from it.">
+<meta name="description" content="A world map of where 5,000+ Stanford-educated people, and 1,700+ who worked there, were born, from Wikidata. Pick a country, or type your hometown, and meet everyone from it.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://matmat202.github.io/stanford-roots/">
 <meta property="og:title" content="Stanford Roots">
@@ -84,6 +84,17 @@ summary{cursor:pointer;font-size:13px;color:var(--ink-2)}
 #us .row{display:flex;gap:8px;align-items:center;margin:8px 4px 0;flex-wrap:wrap}
 #us .row select{width:auto;flex:1 1 220px}
 #us .note{font-size:12px;color:var(--ink-3);margin:6px 4px 0}
+.near{display:grid;grid-template-columns:1fr auto;gap:8px;margin:14px 0 0}
+.nearbox{position:relative}
+.opts{position:absolute;z-index:5;left:0;right:0;top:calc(100% + 4px);margin:0;padding:4px;list-style:none;background:var(--card);
+  border:1px solid var(--line);border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.18);max-height:320px;overflow:auto}
+.opts li{padding:8px 10px;border-radius:7px;cursor:pointer;font-size:14px}
+.opts li[aria-selected="true"],.opts li:hover{background:var(--ground);color:var(--accent)}
+.opts li.none{color:var(--ink-2);cursor:default}
+.home{fill:none;stroke:var(--ink);stroke-width:1.6;pointer-events:none}
+.ring{fill:none;stroke:var(--ink);stroke-width:.8;stroke-dasharray:3 2;pointer-events:none;opacity:.7}
+ol.people .km{color:var(--ink-2);font-weight:600}
+.legend .homek{width:9px;height:9px;border-radius:50%;border:1.6px solid var(--ink);display:inline-block}
 footer{font-size:12px;color:var(--ink-2);line-height:1.5;margin:18px 2px 8px}
 </style>
 </head>
@@ -118,6 +129,17 @@ footer{font-size:12px;color:var(--ink-2);line-height:1.5;margin:18px 2px 8px}
     </details>
   </section>
 
+  <div class="near" id="nearRow">
+    <div class="nearbox"><label class="v" for="near">Born near</label>
+      <input id="near" type="search" autocomplete="off" spellcheck="false" placeholder="Born near… type a hometown"
+        role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="nearList">
+      <ul id="nearList" class="opts" role="listbox" aria-label="Places" hidden></ul></div>
+    <div><label class="v" for="km">Within</label><select id="km">
+      <option value="25">within 25 km</option><option value="50" selected>within 50 km</option>
+      <option value="100">within 100 km</option><option value="200">within 200 km</option>
+    </select></div>
+  </div>
+
   <div class="controls">
     <div><label class="v" for="country">Country</label><select id="country"></select></div>
     <div class="q"><label class="v" for="q">Search</label><input id="q" type="search" autocomplete="off" placeholder="Search: physicist, Lagos, Nobel…"></div>
@@ -139,7 +161,7 @@ footer{font-size:12px;color:var(--ink-2);line-height:1.5;margin:18px 2px 8px}
     "Worked here", "employer" (P108) Stanford or one of its schools, and a recorded birthplace. Someone who did both is in both. Wikidata is volunteer-edited, so it over-represents the famous and
     the American, someone missing here may simply have no birthplace recorded, and a few records are plainly wrong (an 1848-born sculptor did not study at a university founded in 1891). Fix them on Wikidata and the next rebuild picks it up. Births before 1891 are often real: Stanford's medical school grew out of Cooper Medical College. Map: Natural Earth via
     <a href="https://github.com/topojson/world-atlas">world-atlas</a>; states: US Census via
-    <a href="https://github.com/topojson/us-atlas">us-atlas</a>. Built by Claude for
+    <a href="https://github.com/topojson/us-atlas">us-atlas</a>; towns for “Born near”: <a href="https://www.geonames.org/">GeoNames</a> (CC BY 4.0), places of 5,000+ people plus every birthplace above. Someone recorded only as born “in Austria” or “in California” is near nowhere. Built by Claude for
     <a href="https://matmat202.github.io/">matmat202</a>. Not affiliated with Stanford University.</footer>
 </main>
 <script type="module" src="app.js"></script>
