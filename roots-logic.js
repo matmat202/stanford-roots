@@ -223,17 +223,20 @@ export function nearPeople(people, born, at, km) {
     const d = distKm(at[0], at[1], b[0], b[1]);
     if (d <= km) out.push({ p, d });
   }
-  return out.sort((a, b) => a.d - b.d || fold(a.p[P.NAME]).localeCompare(fold(b.p[P.NAME])) || (a.p[P.Q] < b.p[P.Q] ? -1 : 1));
+  return out.sort(byNear);
 }
+const byNear = (a, b) => a.d - b.d || fold(a.p[P.NAME]).localeCompare(fold(b.p[P.NAME])) || (a.p[P.Q] < b.p[P.Q] ? -1 : 1);
 
-// The one nearest person, for "nobody within 50 km; the closest is 140 km away".
+// The one nearest person, for "nobody within 50 km; the closest is 140 km away". Ties go
+// the way nearPeople orders them, so widening the radius to that distance lists them first
+// (measured 2026-10-27: first-found disagreed with the widened list for 23% of towns).
 export function nearest(people, born, at) {
   let best = null;
   for (const p of people) {
     const b = born[p[P.Q]];
     if (!b) continue;
-    const d = distKm(at[0], at[1], b[0], b[1]);
-    if (!best || d < best.d) best = { p, d };
+    const c = { p, d: distKm(at[0], at[1], b[0], b[1]) };
+    if (!best || byNear(c, best) < 0) best = c;
   }
   return best;
 }

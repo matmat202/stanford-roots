@@ -45,6 +45,14 @@ eq('no match is empty, not everyone', L.filterPeople(people, { q: 'zzzz' }).leng
 eq('oldest first, ties by name, unknown last', names(L.sortPeople(people, 'old')), ['Ann Lee', 'José Álvarez', 'Zed Zane', 'Ana Cohen', 'Bo Chen']);
 eq('newest first, unknown still last', names(L.sortPeople(people, 'new')), ['Ana Cohen', 'José Álvarez', 'Zed Zane', 'Ann Lee', 'Bo Chen']);
 eq('a-z ignores accents', names(L.sortPeople(people, 'az')), ['Ana Cohen', 'Ann Lee', 'Bo Chen', 'José Álvarez', 'Zed Zane']);
+{ // Three namesakes born the same year, out of order: the QID breaks the tie, so the list is stable.
+  const twins = ['Q3', 'Q1', 'Q2'].map((q) => [q, 'Al', '', 1900, '', [], 0, 0, '', []]);
+  eq('namesakes order by QID, in every sort', ['old', 'new', 'az'].map((m) => L.sortPeople(twins, m).map((p) => p[0])), [['Q1', 'Q2', 'Q3'], ['Q1', 'Q2', 'Q3'], ['Q1', 'Q2', 'Q3']]);
+  const undated = ['Q3', 'Q1', 'Q2'].map((q) => [q, 'Al', '', null, '', [], 0, 0, '', []]);
+  eq('undated namesakes too', L.sortPeople(undated, 'old').map((p) => p[0]), ['Q1', 'Q2', 'Q3']);
+}
+eq('fold keeps a zero', L.fold(0), '0');
+eq('a bin of one number says the number', [L.binLabel(0, [1, 2, 5]), L.binLabel(1, [1, 2, 5]), L.binLabel(2, [1, 2, 5])], ['1', '2–4', '5+']);
 ok('sort does not mutate', people[0][1] === 'José Álvarez');
 
 // --- urls, centroid, state ----------------------------------------------------------
@@ -91,6 +99,14 @@ eq('life line without year', L.lifeLine(people[2]), 'Taipei');
   eq('a name with its own comma is typed whole', labDc(L.matchPlaces(dc, 'washington, d.c.'))[0], 'Washington, D.C., United States');
   eq('"DC" and "D.C." are the same postal code', labDc(L.matchPlaces(dc, 'washington, dc')), ['Washington, Washington, D.C., United States']);
   eq('nothing typed is nothing', L.matchPlaces(nd, '  '), []);
+  eq('"town, usa" means the US', lab(L.matchPlaces(nd, 'springfield, usa')).length, 3);
+  const gb = { a1: ['', 'Ontario', 'England'], places: [['London', 'CA', 1, 42.98, -81.25], ['London', 'GB', 2, 51.5, -0.13]] };
+  eq('"town, uk" means Great Britain', L.matchPlaces(gb, 'london, uk').map((pl) => L.placeLabel(gb, pl)), ['London, England, United Kingdom']);
+  eq('a region nothing has finds nothing', L.matchPlaces(gb, 'london, narnia'), []);
+  // ø does not fold apart, so "tromso" matches Tromsø only by its ascii name, and must still
+  // rank as an exact match ahead of a bigger place it merely prefixes.
+  const no = { a1: [''], places: [['Tromsøya', 'NO', 0, 69.66, 18.94, 'Tromsoya'], ['Tromsø', 'NO', 0, 69.65, 18.96, 'Tromso']] };
+  eq('an exact ascii name is an exact match', L.matchPlaces(no, 'tromso').map((pl) => pl[0]), ['Tromsø', 'Tromsøya']);
   eq('a label round-trips to its place', L.placeByLabel(nd, 'Springfield, Illinois, United States')?.[3], 39.8);
   eq('an unknown label is no place', L.placeByLabel(nd, 'Springfield, Narnia'), null);
   const born = { Q1: [37.5, -122.2], Q2: [37.44, -122.14], Q3: [38.58, -121.49], Q4: [37.77, -122.42] };
@@ -99,15 +115,32 @@ eq('life line without year', L.lifeLine(people[2]), 'Taipei');
   eq('near: within the radius, nearest first, no point means never near', L.nearPeople(ps, born, pa, 50).map((x) => x.p[1]), ['Al', 'Cy', 'Di']);
   eq('near: a wider radius reaches further', L.nearPeople(ps, born, pa, 200).length, 4);
   eq('nearest outside any radius', L.nearest(ps, born, [30, -122])?.p[1], 'Al');
+  const same = [['Q1', 'Bo'], ['Q3', 'Al'], ['Q2', 'Al']].map(([q, n]) => mk(q, n, '', 1, '', []));
+  const sameBorn = { Q1: [10, 10], Q2: [10, 10], Q3: [10, 10] };
+  eq('near: one birthplace orders by name, then QID', L.nearPeople(same, sameBorn, [10, 10], 1).map((x) => x.p[0]), ['Q2', 'Q3', 'Q1']);
+  eq('nearest breaks a tie the way the list does', L.nearest(same, sameBorn, [20, 20])?.p[0], 'Q2');
+  eq('the default radius is one the page offers', L.RADII.includes(L.DEFAULT_KM), true);
+  eq('nearest to a birth point is who was born there', L.nearest(ps, born, [37.77, -122.42])?.p[1], 'Di');
   ok('distance: Palo Alto to SF is ~45 km', Math.abs(L.distKm(37.44, -122.14, 37.77, -122.42) - 44.5) < 2, L.distKm(37.44, -122.14, 37.77, -122.42));
+  // On a sphere of the mean Earth radius, 6,371 km: a degree of latitude is 111.195 km,
+  // and the far side of the globe is half its circumference.
+  eq('distance: a degree, and the antipode', [L.distKm(10, 20, 11, 20), L.distKm(0, 0, 0, 180)].map((v) => +v.toFixed(3)), [111.195, 20015.087]);
+  eq('km labels at 1 km', [L.kmLabel(0.99), L.kmLabel(1)], ['under 1 km', '1 km']);
+  eq('near: the radius itself is in', L.nearPeople(ps, born, born[ps[0][0]], 0).length >= 1, true);
   eq('km labels', [L.kmLabel(0.3), L.kmLabel(44.6)], ['under 1 km', '45 km']);
   eq('near encodes and replaces the country', L.encodeState({ country: 'Q30', st: 'Q99', near: { label: 'Lagos, Portugal' }, km: 100, q: '', sort: 'old' }), '?near=Lagos%2C+Portugal&km=100');
   eq('default radius stays out of the url', L.encodeState({ near: { label: 'X' }, km: 50 }), '?near=X');
   const dn = L.decodeState('?c=Q668&near=Lagos%2C+Portugal&km=100', known);
   eq('near decodes and wins over a country', [dn.nearLabel, dn.km, dn.country], ['Lagos, Portugal', 100, null]);
   eq('an unoffered radius falls back', L.decodeState('?near=X&km=7', known).km, 50);
+  eq('every offered radius decodes', [25, 50, 100, 200].map((k) => L.decodeState(`?near=X&km=${k}`, known).km), [25, 50, 100, 200]);
+  eq('typed text is cut: a hometown at 120, a search at 80', [L.decodeState('?near=' + 'n'.repeat(130), known).nearLabel.length, L.decodeState('?q=' + 'q'.repeat(90), known).q.length], [120, 80]);
   const [x, y] = L.project(0, 0);
   eq('projection centre is the canvas centre', [Math.round(x), Math.round(y)], [480, 234]);
+  // Equal Earth's published extents (Šavrič, Patterson & Jenny 2018): x 2.70663 at ±180°,
+  // y 1.31731 at the poles, on a 960-wide canvas.
+  eq('projection edges are the canvas edges', [L.project(180, 0)[0], L.project(-180, 0)[0], L.project(0, 90)[1], L.project(0, -90)[1]].map((v) => +v.toFixed(1)),
+    [960, 0, 0, +(960 * 1.31731 / 2.70663).toFixed(1)]); // YMAX is published to 5 places: the pole is 0.009 px off
 }
 
 // --- US states (four people, out of order; one with two states, one US-born with none)
@@ -139,6 +172,8 @@ eq('life line without year', L.lifeLine(people[2]), 'Taipei');
 
 // --- shares and over-representation (4 countries, out of order) -----------------------
 eq('pct', [L.pct(98, 1789), L.pct(0, 10), L.pct(1, 5000), L.pct(5, 0)], ['5.5%', '0%', '<0.1%', '0%']);
+eq('pct at the 0.05% edge', L.pct(1, 2000), '0.1%');
+eq('pct of an eighth', L.pct(1, 8), '12.5%');
 {
   const doc = {
     people: { length: 100 },
@@ -150,6 +185,15 @@ eq('pct', [L.pct(98, 1789), L.pct(0, 10), L.pct(1, 5000), L.pct(5, 0)], ['5.5%',
   eq('ratio is share over share', o[1].ratio, 5);
   eq('ratio labels', [L.ratioLabel(Infinity, 'worked'), L.ratioLabel(2)], ['none who worked here', '2.0×']);
   eq('top cuts', L.overRepresented(doc, { top: 1 }).length, 1);
+  eq('nobody there is an infinite ratio', o[0].ratio, Infinity);
+  eq('exactly the same share is not over', L.overRepresented({ people: { length: 100 }, countries: [{ q: 'A', name: 'A', n: 10 }, { q: 'B', name: 'B', n: 11 }], alt: { people: 100, n: { A: 10, B: 10 } } }).map((x) => x.q), ['B']);
+  eq('five at most by default', L.overRepresented({ people: { length: 100 },
+    countries: ['A', 'B', 'C', 'D', 'E', 'F', 'G'].map((q, i) => ({ q, name: q, n: 10 + i })), alt: { people: 100, n: { A: 10, B: 1, C: 1, D: 1, E: 1, F: 1, G: 1 } } }).map((x) => x.q),
+    ['G', 'F', 'E', 'D', 'C']);
+  eq('equal ratios: more people first, then by name', L.overRepresented({ people: { length: 100 },
+    countries: [{ q: 'Z', name: 'Zed', n: 20 }, { q: 'Y', name: 'Bee', n: 10 }, { q: 'X', name: 'Ay', n: 10 }], alt: { people: 100, n: { Z: 10, Y: 5, X: 5 } } }).map((x) => x.q),
+    ['Z', 'X', 'Y']);
+  eq('under ten people is noise', L.overRepresented({ people: { length: 100 }, countries: [{ q: 'A', name: 'A', n: 9 }, { q: 'B', name: 'B', n: 10 }], alt: { people: 100, n: {} } }).map((x) => x.q), ['B']);
 }
 
 // --- the shipped data ---------------------------------------------------------------
@@ -180,6 +224,7 @@ ok('Singapore is listed though off the 110m map', byQ.get('Q334') && !byQ.get('Q
   const tokyo = D.people.filter((p) => p[4] === 'Tokyo' && p[6] != null)[0];
   ok('Tokyo projects east of Palo Alto and into Asia', tokyo && tokyo[6] > vw * 0.8, JSON.stringify(tokyo && [tokyo[6], tokyo[7]]));
 }
+eq('every person links to Wikidata or Wikipedia', D.people.filter((p) => !/^(https:\/\/www\.wikidata\.org\/wiki\/Q\d+|w:.+)$/.test(p[L.P.URL])).length, 0);
 ok('every mapped country path is a closed path', D.countries.every((c) => c.d == null || /^M[\d.,L-]+Z/.test(c.d)));
 
 // --- US states in the shipped data -----------------------------------------------------
@@ -234,6 +279,25 @@ ok('Germany is over-represented among those who worked here', L.overRepresented(
   const N = JSON.parse(readFileSync(here + 'data/near.json', 'utf8'));
   eq('near.json counts its places', N.counts.places, N.places.length);
   eq('near.json counts its birth points', N.counts.born, Object.keys(N.born).length);
+  eq('eight places at most for a typed town', L.matchPlaces(N, 'san').length, 8);
+  // "The nearest, 140 km away:" names one person; widen the radius to 140 km and the list
+  // must start with that same person.
+  const towns = N.places.filter((_, i) => i % 53 === 0);
+  const disagree = towns.filter((pl) => { const at = [pl[L.N.LAT], pl[L.N.LON]], b = L.nearest(D.people, N.born, at);
+    return b && L.nearPeople(D.people, N.born, at, b.d + 1e-9)[0].p !== b.p; }).length;
+  eq(`shipped: the nearest is who the widened list starts with (${towns.length} towns)`, disagree, 0);
+  // The hometown marker is drawn with the page's project(); everyone's dot was drawn by
+  // build.py's (P.X, P.Y, to 0.1 px from birth points kept to 0.01°). They must agree, or the
+  // marker sits beside the town's own dots. Measured 2026-10-27: 0.066 px at worst over 4,787.
+  let worstPx = 0, both = 0;
+  for (const p of D.people) {
+    const b = N.born[p[L.P.Q]];
+    if (!b || p[L.P.X] == null) continue;
+    both++;
+    const [x, y] = L.project(b[1], b[0]);
+    worstPx = Math.max(worstPx, Math.abs(x - p[L.P.X]), Math.abs(y - p[L.P.Y]));
+  }
+  ok('the marker lands on build.py\'s dots (0.1 px, 4,000+ people)', both > 4000 && worstPx < 0.1, `${both} people, ${worstPx} px`);
   // Everyone drawn as a dot on the map has a birth point, and nobody else does.
   const dotted = new Set([...D.people, ...F.people].filter((p) => p[L.P.X] != null).map((p) => p[L.P.Q]));
   ok('a birth point only for people with a map dot, less the vague ones', dotted.size === N.counts.born + N.counts.vague && Object.keys(N.born).every((q) => dotted.has(q)), `${dotted.size} vs ${N.counts.born}+${N.counts.vague}`);
