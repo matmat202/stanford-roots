@@ -477,7 +477,7 @@ function drawViewControls() {
       `${D.countries.length} countries. Tap one to meet everyone from it.`;
   const sel = $('country');
   sel.replaceChildren();
-  const all = document.createElement('option'); all.value = ''; all.textContent = `Everywhere (${n})`;
+  const all = document.createElement('option'); all.value = ''; all.textContent = 'Everywhere';
   sel.append(all);
   for (const c of D.countries) {
     const o = document.createElement('option'); o.value = c.q; o.textContent = `${c.name} (${fmt(c.n)})`; sel.append(o);
