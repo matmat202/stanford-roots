@@ -51,6 +51,8 @@ a{color:var(--accent)}
 .tipbox{font-size:13px;color:var(--ink-2);margin:4px 4px 0;min-height:1.3em}
 .controls{display:grid;grid-template-columns:1.2fr 1fr auto;gap:8px;margin:14px 0 8px}
 @media (max-width:620px){.controls{grid-template-columns:1fr auto}.controls .q{grid-column:1 / -1;order:3}}
+/* One column on a phone: "Bosnia and Herzegovina (1)" needs ~194px and the country select had 97px at 320 beside Sort. */
+@media (max-width:480px){.controls{grid-template-columns:1fr}}
 select,input{font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);min-width:0;width:100%}
 label.v{position:absolute;left:-9999px}
 .head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:6px 2px 6px}
