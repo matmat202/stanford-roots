@@ -183,7 +183,7 @@ eq('pct of an eighth', L.pct(1, 8), '12.5%');
   const o = L.overRepresented(doc);
   eq('over-represented: ratio order, none-elsewhere first, under-min and under-1 dropped', o.map((x) => x.q), ['NO', 'DE', 'AT']);
   eq('ratio is share over share', o[1].ratio, 5);
-  eq('ratio labels', [L.ratioLabel(Infinity, 'worked'), L.ratioLabel(2)], ['none who worked here', '2.0×']);
+  eq('ratio labels', [L.ratioLabel(Infinity, 'worked'), L.ratioLabel(2)], ['(none who worked here)', '2.0×']);
   eq('top cuts', L.overRepresented(doc, { top: 1 }).length, 1);
   eq('nobody there is an infinite ratio', o[0].ratio, Infinity);
   eq('exactly the same share is not over', L.overRepresented({ people: { length: 100 }, countries: [{ q: 'A', name: 'A', n: 10 }, { q: 'B', name: 'B', n: 11 }], alt: { people: 100, n: { A: 10, B: 10 } } }).map((x) => x.q), ['B']);

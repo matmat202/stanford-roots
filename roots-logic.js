@@ -109,7 +109,7 @@ function rankOver(items, total, altN, altTotal, { min = 10, top = 5 } = {}) {
   out.sort((a, b) => b.ratio - a.ratio || b.n - a.n || (a.name < b.name ? -1 : 1));
   return out.slice(0, top);
 }
-export const ratioLabel = (r, other = 'studied') => (r === Infinity ? `none who ${other} here` : `${r.toFixed(1)}×`);
+export const ratioLabel = (r, other = 'studied') => (r === Infinity ? `(none who ${other} here)` : `${r.toFixed(1)}×`);
 
 /* "Born near": a typed hometown -> a point -> everyone born within a radius of it.
  * near.json (build.py) is [name, cc, admin1 index, lat, lon, ascii?] per place, most
