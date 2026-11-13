@@ -51,6 +51,14 @@ eq('a-z ignores accents', names(L.sortPeople(people, 'az')), ['Ana Cohen', 'Ann 
   const undated = ['Q3', 'Q1', 'Q2'].map((q) => [q, 'Al', '', null, '', [], 0, 0, '', []]);
   eq('undated namesakes too', L.sortPeople(undated, 'old').map((p) => p[0]), ['Q1', 'Q2', 'Q3']);
 }
+{ // Best known first: most sitelinks first, ties by name then QID, no sitelink count last.
+  // Five, misordered, with a tie and a missing count; and it is the default.
+  const sl = (q, name, n) => { const p = [q, name, '', 1900, '', [], 0, 0, '', []]; if (n != null) p.push(n); return p; };
+  const fam = [sl('Q5', 'Eve', 3), sl('Q1', 'Cy', 40), sl('Q4', 'Al', 3), sl('Q2', 'Di'), sl('Q3', 'Bo', 120)];
+  eq('best known first, ties by name, no count last', names(L.sortPeople(fam, 'known')), ['Bo', 'Cy', 'Al', 'Eve', 'Di']);
+  eq('best known is the default sort', names(L.sortPeople(fam)), names(L.sortPeople(fam, 'known')));
+  eq('sitelinks sit at P.SL', L.P.SL, 10);
+}
 eq('fold keeps a zero', L.fold(0), '0');
 eq('a bin of one number says the number', [L.binLabel(0, [1, 2, 5]), L.binLabel(1, [1, 2, 5]), L.binLabel(2, [1, 2, 5])], ['1', '2–4', '5+']);
 ok('sort does not mutate', people[0][1] === 'José Álvarez');
@@ -62,15 +70,17 @@ eq('centroid', L.centroid([mk('a', 'a', '', 1, '', ['X']), [...mk('b', 'b', '', 
 eq('centroid ignores pointless people', L.centroid([[...mk('a', 'a', '', 1, '', ['X']).slice(0, 6), null, null, 'w:a']], 'X'), null);
 const known = new Set(['Q30', 'Q668']);
 eq('state encodes', L.encodeState({ country: 'Q668', q: ' physicist ', sort: 'new' }), '?c=Q668&q=physicist&sort=new');
-eq('default state is empty', L.encodeState({ country: null, q: '', sort: 'old' }), '');
+eq('default state is empty', L.encodeState({ country: null, q: '', sort: 'known' }), '');
 eq('state round-trips', L.decodeState(L.encodeState({ country: 'Q668', q: 'a b', sort: 'az' }), known), { view: 'studied', country: 'Q668', st: null, q: 'a b', sort: 'az', nearLabel: '', km: 50 });
-eq('worked view encodes first', L.encodeState({ view: 'worked', country: 'Q668', q: '', sort: 'old' }), '?v=worked&c=Q668');
-eq('studied view is the default and stays out of the url', L.encodeState({ view: 'studied', country: null, q: '', sort: 'old' }), '');
+eq('worked view encodes first', L.encodeState({ view: 'worked', country: 'Q668', q: '', sort: 'known' }), '?v=worked&c=Q668');
+eq('studied view is the default and stays out of the url', L.encodeState({ view: 'studied', country: null, q: '', sort: 'known' }), '');
 eq('worked view round-trips', L.decodeState('?v=worked', known).view, 'worked');
 eq('unknown view falls back', L.decodeState('?v=evil', known).view, 'studied');
 eq('other view', [L.otherView('studied'), L.otherView('worked')], ['worked', 'studied']);
 eq('unknown country ignored', L.decodeState('?c=Q999999', known).country, null);
-eq('unknown sort falls back', L.decodeState('?sort=evil', known).sort, 'old');
+eq('unknown sort falls back', L.decodeState('?sort=evil', known).sort, 'known');
+eq('best known is the default and stays out of the url', [L.encodeState({ country: 'Q668', q: '', sort: 'known' }), L.decodeState('?c=Q668', known).sort], ['?c=Q668', 'known']);
+eq('oldest first is now a choice, kept in the url', L.decodeState(L.encodeState({ country: 'Q668', q: '', sort: 'old' }), known).sort, 'old');
 eq('life line', L.lifeLine(people[0]), 'b. 1950 · São Paulo');
 eq('life line without year', L.lifeLine(people[2]), 'Taipei');
 
@@ -128,7 +138,7 @@ eq('life line without year', L.lifeLine(people[2]), 'Taipei');
   eq('km labels at 1 km', [L.kmLabel(0.99), L.kmLabel(1)], ['under 1 km', '1 km']);
   eq('near: the radius itself is in', L.nearPeople(ps, born, born[ps[0][0]], 0).length >= 1, true);
   eq('km labels', [L.kmLabel(0.3), L.kmLabel(44.6)], ['under 1 km', '45 km']);
-  eq('near encodes and replaces the country', L.encodeState({ country: 'Q30', st: 'Q99', near: { label: 'Lagos, Portugal' }, km: 100, q: '', sort: 'old' }), '?near=Lagos%2C+Portugal&km=100');
+  eq('near encodes and replaces the country', L.encodeState({ country: 'Q30', st: 'Q99', near: { label: 'Lagos, Portugal' }, km: 100, q: '', sort: 'known' }), '?near=Lagos%2C+Portugal&km=100');
   eq('default radius stays out of the url', L.encodeState({ near: { label: 'X' }, km: 50 }), '?near=X');
   const dn = L.decodeState('?c=Q668&near=Lagos%2C+Portugal&km=100', known);
   eq('near decodes and wins over a country', [dn.nearLabel, dn.km, dn.country], ['Lagos, Portugal', 100, null]);
@@ -157,8 +167,8 @@ eq('life line without year', L.lifeLine(people[2]), 'Taipei');
   eq('a state without the US is ignored', L.filterPeople(ps, { country: 'Q142', st: 'Q99' }).length, 1);
   eq('state and query combine', L.filterPeople(ps, { country: 'Q30', st: 'Q99', q: 'two' }).length, 0);
   const ks = new Set(['Q99']);
-  eq('state encodes under the US', L.encodeState({ country: 'Q30', st: 'Q99', q: '', sort: 'old' }), '?c=Q30&s=Q99');
-  eq('state dropped without the US', L.encodeState({ country: 'Q668', st: 'Q99', q: '', sort: 'old' }), '?c=Q668');
+  eq('state encodes under the US', L.encodeState({ country: 'Q30', st: 'Q99', q: '', sort: 'known' }), '?c=Q30&s=Q99');
+  eq('state dropped without the US', L.encodeState({ country: 'Q668', st: 'Q99', q: '', sort: 'known' }), '?c=Q668');
   eq('state round-trips', L.decodeState('?c=Q30&s=Q99', known, ks).st, 'Q99');
   eq('unknown state ignored', L.decodeState('?c=Q30&s=Q1', known, ks).st, null);
   eq('state without the US ignored on decode', L.decodeState('?c=Q668&s=Q99', known, ks).st, null);
@@ -210,6 +220,18 @@ ok('every country count equals its people', sumOk);
 ok('every person has at least one known country', D.people.every((p) => p[5].length >= 1 && p[5].every((c) => byQ.has(c))));
 ok('every person has a name and a url', D.people.every((p) => p[1] && /^(w:|https:\/\/www\.wikidata\.org\/wiki\/Q)/.test(p[8])));
 ok('ids are unique', new Set(D.people.map((p) => p[0])).size === D.people.length);
+// The default sort reads P.SL. A fetch that drops ?sl ships every count as 0 (or missing),
+// and "Best known first" then quietly becomes A-Z: nothing throws.
+for (const [name, X] of [['studied', D], ['worked', F]]) {
+  ok(`${name}: every person carries a whole sitelink count`, X.people.every((p) => Number.isInteger(p[L.P.SL]) && p[L.P.SL] >= 0));
+  // ~13% are Wikidata-only items and truly have 0; an English Wikipedia article is itself a sitelink.
+  ok(`${name}: everyone on English Wikipedia has a sitelink`, X.people.every((p) => !L.isWikipedia(p[L.P.URL]) || p[L.P.SL] >= 1));
+}
+{ // Who opens India's list: the best known person must out-link the oldest.
+  const india = L.filterPeople(D.people, { country: 'Q668' });
+  const top = L.sortPeople(india)[0], oldest = L.sortPeople(india, 'old')[0];
+  ok('India opens on someone well known', top[L.P.SL] >= 30 && top[L.P.SL] > oldest[L.P.SL], `${top[1]} ${top[L.P.SL]} vs ${oldest[1]} ${oldest[L.P.SL]}`);
+}
 const [vw, vh] = D.view;
 ok('points sit inside the map', D.people.every((p) => p[6] == null || (p[6] >= 0 && p[6] <= vw && p[7] >= 0 && p[7] <= vh)));
 eq('US is the biggest', D.countries[0].name, 'United States');

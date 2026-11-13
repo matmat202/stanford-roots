@@ -13,7 +13,7 @@ let byQ = new Map();
 const cache = {};
 const FILES = { studied: 'data/roots.json', worked: 'data/faculty.json' };
 const VERB = { studied: 'studied', worked: 'worked' };
-const state = { view: 'studied', country: null, st: null, q: '', sort: 'old', shown: PAGE, near: null, km: DEFAULT_KM };
+const state = { view: 'studied', country: null, st: null, q: '', sort: 'known', shown: PAGE, near: null, km: DEFAULT_KM };
 // The "Born near" gazetteer (1.2 MB gzipped), fetched the first time anyone types a town.
 let nearDoc = null;
 let ND = null;

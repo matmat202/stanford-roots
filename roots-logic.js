@@ -1,11 +1,11 @@
 /* Pure logic for Stanford Roots: bins, search, sorting, URL state. No DOM, so node can
  * test it (site/roots-logic.test.mjs). A person is the array build.py writes:
  *   [qid, name, description, bornYear|null, birthplace, [countryQid...], x|null, y|null, url,
- *    [usStateQid...]]
+ *    [usStateQid...], sitelinks]
  * The states are empty for anyone not counted in the US, and for the ~2% of the US-born
  * whose birthplace Wikidata does not place in a state (bare "United States", Puerto Rico).
  */
-export const P = { Q: 0, NAME: 1, DESC: 2, BORN: 3, PLACE: 4, CS: 5, X: 6, Y: 7, URL: 8, ST: 9 };
+export const P = { Q: 0, NAME: 1, DESC: 2, BORN: 3, PLACE: 4, CS: 5, X: 6, Y: 7, URL: 8, ST: 9, SL: 10 };
 export const US = 'Q30';
 
 // Class breaks for the map. Counts run from 1 to ~3,800 (the US), so they are log-ish:
@@ -44,11 +44,13 @@ export function filterPeople(people, { country = null, st = null, q = '' } = {})
   });
 }
 
-// Unknown birth years always sort last, whichever direction is asked for.
-export function sortPeople(list, mode = 'old') {
+// 'known' (the default): most Wikipedia sitelinks first, the nearest thing Wikidata has to
+// "someone you would recognise". Unknown birth years always sort last in the year sorts.
+export function sortPeople(list, mode = 'known') {
   const byName = (a, b) => fold(a[P.NAME]).localeCompare(fold(b[P.NAME])) || (a[P.Q] < b[P.Q] ? -1 : 1);
   const out = [...list];
   if (mode === 'az') return out.sort(byName);
+  if (mode === 'known') return out.sort((a, b) => (b[P.SL] || 0) - (a[P.SL] || 0) || byName(a, b));
   const dir = mode === 'new' ? -1 : 1;
   return out.sort((a, b) => {
     const ya = a[P.BORN], yb = b[P.BORN];
@@ -259,7 +261,7 @@ export function project(lon, lat) {
 // ?v=worked&c=Q30&s=Q99&q=physicist&sort=new&near=Lagos, Lagos, Nigeria&km=100. Unknown
 // values fall back rather than throw; a state is kept only under the US, and a hometown
 // replaces any country (the page never shows both).
-const SORTS = ['old', 'new', 'az'];
+const SORTS = ['known', 'old', 'new', 'az'];
 export function encodeState({ view, country, st, q, sort, near, km }) {
   const p = new URLSearchParams();
   if (view === 'worked') p.set('v', 'worked');
@@ -271,7 +273,7 @@ export function encodeState({ view, country, st, q, sort, near, km }) {
     if (st && country === US) p.set('s', st);
   }
   if (q && q.trim()) p.set('q', q.trim());
-  if (sort && sort !== 'old') p.set('sort', sort);
+  if (sort && sort !== 'known') p.set('sort', sort);
   const s = p.toString();
   return s ? `?${s}` : '';
 }
@@ -288,7 +290,7 @@ export function decodeState(search, knownCountries, knownStates = new Set()) {
     country,
     st: country === US && s && knownStates.has(s) ? s : null,
     q: (p.get('q') || '').slice(0, 80),
-    sort: SORTS.includes(sort) ? sort : 'old',
+    sort: SORTS.includes(sort) ? sort : 'known',
     nearLabel,
     km: RADII.includes(km) ? km : DEFAULT_KM,
   };
