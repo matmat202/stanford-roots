@@ -232,6 +232,26 @@ for (const [name, X] of [['studied', D], ['worked', F]]) {
   const top = L.sortPeople(india)[0], oldest = L.sortPeople(india, 'old')[0];
   ok('India opens on someone well known', top[L.P.SL] >= 30 && top[L.P.SL] > oldest[L.P.SL], `${top[1]} ${top[L.P.SL]} vs ${oldest[1]} ${oldest[L.P.SL]}`);
 }
+// Wikidata gives some birthplaces as the building: JFK and Hoover opened the default list
+// "b. 1917 · John Fitzgerald Kennedy National Historic Site". build.py puts the town first.
+{
+  // (Shipped data only: publish.sh runs this from .publish/, where data/*.raw.json is absent.)
+  const at = (q) => (D.people.find((p) => p[0] === q) || [])[L.P.PLACE];
+  eq('JFK was born in Brookline', at('Q9696'), 'Brookline (John Fitzgerald Kennedy National Historic Site)');
+  eq('Hoover was born in West Branch', at('Q35236'), 'West Branch (Herbert Hoover National Historic Site)');
+  eq('Romney was born in Detroit', at('Q4496'), 'Detroit (Harper University Hospital)');
+  // Names Wikidata keeps only in "mul" came back as bare QIDs: Sunak was dropped as
+  // unlabelled, Castro shipped as "b. 1974 · Q975". fetch.py's fill_mul fixes both.
+  eq('Rishi Sunak is listed, born in Southampton', at('Q20055561'), 'City of Southampton (Southampton General Hospital)');
+  eq('Joaquin Castro was born in San Antonio', at('Q1167934'), 'San Antonio');
+  ok('searching a venue town finds who was born in its building',
+    L.filterPeople(D.people, { q: 'brookline' }).some((p) => p[0] === 'Q9696'));
+  for (const [name, X] of [['studied', D], ['worked', F]]) {
+    const bare = X.people.filter((p) => /National Historic Site|Hospital|Medical Center|Air Force Base/.test(p[L.P.PLACE]) && !/^[^(]+ \(.+\)$/.test(p[L.P.PLACE]));
+    eq(`${name}: no birthplace is a bare building`, bare.map((p) => `${p[1]}: ${p[L.P.PLACE]}`), []);
+    ok(`${name}: no birthplace label is a bare QID`, !X.people.some((p) => /^Q\d+$|\(Q\d+\)$/.test(p[L.P.PLACE] || '')));
+  }
+}
 const [vw, vh] = D.view;
 ok('points sit inside the map', D.people.every((p) => p[6] == null || (p[6] >= 0 && p[6] <= vw && p[7] >= 0 && p[7] <= vh)));
 eq('US is the biggest', D.countries[0].name, 'United States');
@@ -274,7 +294,8 @@ eq('each file carries the other file\'s state counts', [D.alt.states, F.alt.stat
 }
 // The finding, measured 2026-10-26: California is a third of the US-born who studied
 // here but a seventh of those who worked here; New York is the reverse.
-ok('California is over-represented among the US-born who studied here', L.overRepresentedStates(D, stNames).some((x) => x.q === 'Q99'));
+// Ranked, not just ratio > 1: 2026-11-14's +206 people put five small states above it (6th).
+ok('California is over-represented among the US-born who studied here', L.overRepresentedStates(D, stNames, { top: 99 }).some((x) => x.q === 'Q99' && x.ratio > 2));
 ok('New York is over-represented among the US-born who worked here', L.overRepresentedStates(F, stNames, { top: 20 }).some((x) => x.q === 'Q1384'));
 
 // --- the worked-here view, and the cross-links between the two files -------------------
@@ -294,7 +315,7 @@ eq('both views share one map', F.view, D.view);
 // The finding the view exists to show, measured 2026-10-26: those who worked here were
 // born abroad far more often than those who studied here, Germany most of all.
 ok('worked view is less American than the studied view', F.countries[0].n / F.people.length < D.countries[0].n / D.people.length - 0.1);
-ok('Germany is over-represented among those who worked here', L.overRepresented(F).some((x) => x.q === 'Q183' && x.ratio > 2));
+ok('Germany is over-represented among those who worked here', L.overRepresented(F, { top: 99 }).some((x) => x.q === 'Q183' && x.ratio > 2));
 
 // --- the shipped gazetteer ------------------------------------------------------------
 {
