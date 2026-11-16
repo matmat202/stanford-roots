@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Born Elsewhere · where Stanford's people were born, decade by decade</title>
+<meta name="description" content="A scrolling story: 5,419 people who studied at Stanford, flown from their birthplaces into the decade they were born. The share born abroad tripled — and the dip at the end is the athletes.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="plot" aria-hidden="true"><div id="outlines"></div><div id="axes"></div></div>
+<canvas id="gl" aria-hidden="true"></canvas>
+<p id="err" role="alert"></p>
+<main>
+
+<section class="step" data-kind="field"><div>
+  <p class="kicker">Stanford Roots · a story</p>
+  <h1>Born elsewhere</h1>
+  <p>Wikidata knows where <b data-fact="people"></b> people who studied at Stanford were
+  born. Every dot on this page is one of them. Scroll, and each one flies home — then into
+  the decade they were born.</p>
+  <p class="small">Scroll ↓</p>
+</div></section>
+
+<section class="step" data-kind="map"><div>
+  <p class="kicker">Where they were born</p>
+  <h2>Mostly here</h2>
+  <p><b data-fact="us"></b> of them, <b data-fact="us-pct"></b>, were born in the
+  <span class="w us">United States</span>. The other <b data-fact="abroad"></b>
+  were <span class="w ab">born abroad</span>, in <b data-fact="countries"></b> countries.</p>
+  <p>That is the whole record at once. It hides when.</p>
+</div></section>
+
+<section class="step" data-kind="counts"><div>
+  <p class="kicker">When they were born</p>
+  <h2>A twentieth-century record</h2>
+  <p>Sorted by decade of birth, the crowd peaks among people born in the
+  <b data-fact="peak-bin"></b>: <b data-fact="n:1940s"></b> of them. Older generations
+  are thinner because Stanford was smaller; younger ones because Wikidata has not caught
+  up with them yet.</p>
+  <p>Raw counts make every decade look mostly American. Stretch each column to the same
+  height and the question becomes: what share was born abroad?</p>
+</div></section>
+
+<section class="step" data-kind="share"><div>
+  <p class="kicker">Chapter 1 · The share</p>
+  <h2>One in eight, then more than one in three</h2>
+  <p>Of those born before 1900, <b data-fact="share:before 1900"></b> were born abroad.
+  It barely moves for three decades, then climbs every decade: <b data-fact="share:1940s"></b>
+  for the 1940s, <b data-fact="share:1960s"></b> for the 1960s.</p>
+  <p>And then it turns. People born since 1990: <b data-fact="share:1990+"></b>, back
+  to where it was for the 1940s. Did Stanford close its doors?</p>
+</div></section>
+
+<section class="step" data-kind="athletes"><div>
+  <p class="kicker">Chapter 2 · Who joined the record</p>
+  <h2>The dip is the athletes</h2>
+  <p>Colour in everyone whose Wikidata description is a <span class="w at">sports career</span>.
+  Among people born before 1960 they never make up more than <b data-fact="ath-max:1960"></b>
+  of a decade. Among people born since 1990 they are <b data-fact="ath:1990+"></b>.</p>
+  <p>An athlete is notable young — a roster spot or an Olympic entry is enough for
+  Wikidata — while most careers take decades to be written up. And Stanford's athletes are overwhelmingly American-born — so
+  as they fill the youngest columns, the share born abroad sinks.</p>
+</div></section>
+
+<section class="step" data-kind="no-athletes"><div>
+  <p class="kicker">Chapter 3 · Take them out</p>
+  <h2>It never came back down</h2>
+  <p>Leave the <b data-fact="ath-n"></b> athletes out, and the climb is steeper and
+  the fall is gone: <b data-fact="share-na:before 1900"></b> born abroad before 1900,
+  <b data-fact="share-na:1970s"></b> for the 1970s, <b data-fact="share-na:1990+"></b>
+  since 1990.</p>
+  <p>For everyone born from the 1960s on, the share born abroad is more than four in ten,
+  every decade.</p>
+</div></section>
+
+<section class="step" data-kind="map-era" data-born="0-1940"><div>
+  <p class="kicker">Chapter 4 · From where</p>
+  <h2>Before 1940: Canada, Britain, China, Germany</h2>
+  <p>Here are the <b data-fact="abroad-n:0:1940"></b> born abroad before 1940.
+  <b data-fact="top:0:1940:1"></b> leads with <b data-fact="cnt:0:1940:Q16"></b>; then
+  Britain, <span class="w ab">China</span> and Germany, tied at
+  <b data-fact="cnt:0:1940:Q148"></b> each. A century ago China already sent Stanford as
+  many future notables as Europe's biggest countries.</p>
+  <p><span class="w ab">India</span> was <b data-fact="rank:0:1940:Q668"></b>th, with
+  <b data-fact="cnt:0:1940:Q668"></b>.</p>
+</div></section>
+
+<section class="step" data-kind="map-era" data-born="1960-9999"><div>
+  <p class="kicker">Chapter 5 · And since</p>
+  <h2>After 1960: India</h2>
+  <p>Born in 1960 or later and abroad: <b data-fact="abroad-n:1960:9999"></b>.
+  <b data-fact="top:1960:9999:1"></b> still leads, with <b data-fact="cnt:1960:9999:Q16"></b>.
+  But <span class="w ab">India</span> is now <b data-fact="rank:1960:9999:Q668"></b>nd,
+  with <b data-fact="cnt:1960:9999:Q668"></b> — three times its count from before 1940.</p>
+</div></section>
+
+<section class="step" data-kind="map"><div>
+  <p class="kicker">Coda · Find your own</p>
+  <h2>Every one of them has a name</h2>
+  <p>The map that this story was cut from lets you click any country, or search any town,
+  and see who was born there: <a href="../">Stanford Roots</a>.</p>
+  <p class="small">People are those Wikidata records as educated at (P69) Stanford or one of
+  its schools, with a place of birth; someone born in two countries' territory counts in
+  both. Wikidata is a record of the notable, not a census of alumni: it over-counts the
+  famous and the recently competitive. "Sports career" is a keyword match on the one-line
+  description (player, swimmer, coach, Olympian…), so it misses some athletes and catches
+  a few coaches of other things. Data fetched from Wikidata, refreshed with the site.</p>
+</div></section>
+
+</main>
+<script type="module" src="story.js"></script>
+</body>
+</html>

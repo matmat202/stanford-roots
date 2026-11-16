@@ -7,6 +7,16 @@ list, to see everyone from it: name, what they did, birth year and birthplace, e
 linked to Wikipedia (or to Wikidata when there is no English article). Search works
 within a country or across all of them: try *physicist*, *Lagos* or *Nobel*.
 
+## The story
+
+**<https://matmat202.github.io/stanford-roots/story/>** — *Born elsewhere*: a scrolling
+WebGL story in which every person flies from their birthplace into the decade they were
+born. The share born abroad climbs from 13% (born before 1900) to 37% (1960s), then
+seems to fall; the fall is the athletes, who make up 71% of people born since 1990 and are
+mostly American-born. Without them the share holds above 40% for every decade from the
+1960s on. Every typed claim is pinned by `test/story.test.mjs`; `test/run-story.sh`
+scrolls it in Electron and counts drawn pixels per chapter.
+
 ## Where the people come from
 
 [Wikidata](https://www.wikidata.org/) (CC0): everyone with **educated at** (P69) Stanford

@@ -32,6 +32,7 @@ body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--f-ui);
 main{max-width:900px;margin:0 auto;padding:16px}
 h1{font-size:24px;margin:4px 0 2px}h1 .red{color:var(--accent)}
 .sub{color:var(--ink-2);font-size:13px;margin:0 0 14px;line-height:1.45}
+.story{font-size:14px;margin:-6px 0 14px}.story a{color:var(--accent);font-weight:600}
 a{color:var(--accent)}
 :focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px}
@@ -107,6 +108,7 @@ input,select,textarea{font-size:16px!important}
 <main>
   <h1>Stanford <span class="red">Roots</span></h1>
   <p class="sub" id="sub">Where the people Wikidata lists as educated at Stanford were born. Tap a country to meet everyone from it.</p>
+  <p class="story"><a href="story/">Read the story: who was born abroad, decade by decade &rarr;</a></p>
 
   <div class="views" id="views" role="group" aria-label="Whose birthplaces">
     <button type="button" data-v="studied" aria-pressed="true">Studied here</button>
