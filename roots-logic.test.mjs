@@ -325,10 +325,10 @@ ok('Germany is over-represented among those who worked here', L.overRepresented(
   eq('eight places at most for a typed town', L.matchPlaces(N, 'san').length, 8);
   // "The nearest, 140 km away:" names one person; widen the radius to 140 km and the list
   // must start with that same person.
-  const towns = N.places.filter((_, i) => i % 53 === 0);
-  const disagree = towns.filter((pl) => { const at = [pl[L.N.LAT], pl[L.N.LON]], b = L.nearest(D.people, N.born, at);
+  const sample = N.places.filter((_, i) => i % 53 === 0);
+  const disagree = sample.filter((pl) => { const at = [pl[L.N.LAT], pl[L.N.LON]], b = L.nearest(D.people, N.born, at);
     return b && L.nearPeople(D.people, N.born, at, b.d + 1e-9)[0].p !== b.p; }).length;
-  eq(`shipped: the nearest is who the widened list starts with (${towns.length} towns)`, disagree, 0);
+  eq(`shipped: the nearest is who the widened list starts with (${sample.length} towns)`, disagree, 0);
   // The hometown marker is drawn with the page's project(); everyone's dot was drawn by
   // build.py's (P.X, P.Y, to 0.1 px from birth points kept to 0.01°). They must agree, or the
   // marker sits beside the town's own dots. Measured 2026-10-27: 0.066 px at worst over 4,787.
@@ -344,6 +344,16 @@ ok('Germany is over-represented among those who worked here', L.overRepresented(
   // Everyone drawn as a dot on the map has a birth point, and nobody else does.
   const dotted = new Set([...D.people, ...F.people].filter((p) => p[L.P.X] != null).map((p) => p[L.P.Q]));
   ok('a birth point only for people with a map dot, less the vague ones', dotted.size === N.counts.born + N.counts.vague && Object.keys(N.born).every((q) => dotted.has(q)), `${dotted.size} vs ${N.counts.born}+${N.counts.vague}`);
+  // A building birthplace is shown "West Branch (Herbert Hoover National Historic Site)";
+  // typing the town must reach that person, and typing the building ("Fort Sill") still must.
+  const towns = new Set(Object.values(JSON.parse(readFileSync(here + '../data/venues.raw.json', 'utf8')).places));
+  const venued = [...D.people, ...F.people].filter((p) => / \(.+\)$/.test(p[L.P.PLACE] || '') && towns.has(p[L.P.PLACE].replace(/ \(.+\)$/, '')) && N.born[p[L.P.Q]]);
+  const reaches = (typed, p) => L.matchPlaces(N, typed).some((pl) =>
+    L.nearPeople([p], N.born, [pl[L.N.LAT], pl[L.N.LON]], 25).length);
+  const lost = venued.filter((p) => !reaches(p[L.P.PLACE].replace(/ \(.+\)$/, ''), p) || !reaches(p[L.P.PLACE].match(/\((.+)\)$/)[1], p));
+  ok('every "Town (building)" birthplace is reached by typing the town or the building', venued.length > 15 && !lost.length, `${venued.length} venued; lost ${lost.slice(0, 4).map((p) => p[L.P.PLACE]).join('; ')}`);
+  const wb = L.matchPlaces(N, 'west branch')[0];
+  ok('"West Branch" finds Herbert Hoover', wb && L.nearPeople(D.people, N.born, [wb[L.N.LAT], wb[L.N.LON]], 25).some((x) => x.p[L.P.NAME] === 'Herbert Hoover'));
   // "Austria" and "California" are points at their middle: never near anything.
   const vagueQ = D.people.filter((p) => p[L.P.PLACE] === 'Austria' || p[L.P.PLACE] === 'California');
   ok('a whole country or state as birthplace has no birth point', vagueQ.length > 5 && vagueQ.every((p) => !N.born[p[L.P.Q]]), vagueQ.length);
