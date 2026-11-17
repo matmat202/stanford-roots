@@ -296,9 +296,31 @@ export function decodeState(search, knownCountries, knownStates = new Set()) {
   };
 }
 
-export function lifeLine(p) {
+export function lifeLine(p, scope) {
   const bits = [];
   if (p[P.BORN] != null) bits.push(`b. ${p[P.BORN]}`);
-  if (p[P.PLACE]) bits.push(p[P.PLACE]);
+  // only a scope object: .map(lifeLine) hands over the index as the second argument
+  const where = scope && typeof scope === 'object' ? whereBorn(p, scope) : p[P.PLACE];
+  if (where) bits.push(where);
   return bits.join(' · ');
+}
+
+// The birthplace with as much of "where" as the list has not already said. A list of
+// everyone (or everyone near a town) gives the country, or the state for the US-born:
+// "Cypress" alone reads as Cyprus, but Tiger Woods was born in Cypress, California. The
+// US list gives the state; a country's or a state's own list adds nothing.
+//   scope: { country, st, countryName: q -> name, stateName: q -> name }
+export function whereBorn(p, { country = null, st = null, countryName, stateName }) {
+  const place = p[P.PLACE] || '';
+  if (st) return place;
+  const cs = p[P.CS] || [];
+  const states = (p[P.ST] || []).map(stateName).filter(Boolean);
+  let add;
+  if (country && cs.includes(country)) add = country === US ? states : [];
+  else if (cs.includes(US) && states.length) add = states;
+  else add = cs.map(countryName).filter(Boolean);
+  const low = place.toLowerCase();
+  add = add.filter((a) => { const x = a.toLowerCase(); return low !== x && !low.endsWith(' ' + x) && !low.endsWith(', ' + x); });
+  if (!add.length) return place;
+  return place ? `${place}, ${add.join(' / ')}` : add.join(' / ');
 }

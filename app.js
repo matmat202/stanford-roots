@@ -178,6 +178,14 @@ function drawList() {
   more.textContent = `Show more (${fmt(list.length - state.shown)} left)`;
 }
 
+// What the open list has already said about where its people were born. A hometown list
+// spans borders whatever country was picked before, so it counts as everywhere.
+function listScope() {
+  const near = !!(state.near && ND);
+  return { country: near ? null : state.country, st: near ? null : state.st,
+    countryName: (q) => byQ.get(q)?.name, stateName: (q) => D.states.names?.[q] };
+}
+
 function personItem(p, d = null) {
   const li = document.createElement('li');
   const a = document.createElement('a');
@@ -187,7 +195,7 @@ function personItem(p, d = null) {
   src.className = 'src'; src.textContent = isWikipedia(p[P.URL]) ? 'Wikipedia' : 'Wikidata';
   li.append(a, src);
   if (p[P.DESC]) { const dv = document.createElement('div'); dv.className = 'd'; dv.textContent = p[P.DESC]; li.append(dv); }
-  const l = document.createElement('div'); l.className = 'l'; l.textContent = lifeLine(p);
+  const l = document.createElement('div'); l.className = 'l'; l.textContent = lifeLine(p, listScope());
   if (d != null) { const k = document.createElement('span'); k.className = 'km'; k.textContent = ` · ${kmLabel(d)} away`; l.append(k); }
   li.append(l);
   return li;

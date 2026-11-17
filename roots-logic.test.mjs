@@ -84,6 +84,30 @@ eq('oldest first is now a choice, kept in the url', L.decodeState(L.encodeState(
 eq('life line', L.lifeLine(people[0]), 'b. 1950 · São Paulo');
 eq('life line without year', L.lifeLine(people[2]), 'Taipei');
 
+// --- where: a list says as much of the birthplace as it has not already said --------
+{
+  const cn = { Q30: 'United States', Q159: 'Russia', Q801: 'Israel', Q219060: 'Palestine', Q40: 'Austria' };
+  const sn = { Q99: 'California', Q1439: 'Texas' };
+  const sc = (country = null, st = null) => ({ country, st, countryName: (q) => cn[q], stateName: (q) => sn[q] });
+  const w = (q, place, cs, st) => { const p = [q, q, '', 1975, place, cs, 1, 1, 'w:' + q]; p[L.P.ST] = st; return p; };
+  const tiger = w('T', 'Cypress', ['Q30'], ['Q99']);
+  const brin = w('B', 'Moscow', ['Q159'], []);
+  eq('everyone: a US birthplace gets its state', L.lifeLine(tiger, sc()), 'b. 1975 · Cypress, California');
+  eq('everyone: elsewhere gets the country', L.lifeLine(brin, sc()), 'b. 1975 · Moscow, Russia');
+  eq('a country list adds nothing', L.lifeLine(brin, sc('Q159')), 'b. 1975 · Moscow');
+  eq('the US list still gives the state', L.whereBorn(tiger, sc('Q30')), 'Cypress, California');
+  eq('a state list adds nothing', L.whereBorn(tiger, sc('Q30', 'Q99')), 'Cypress');
+  eq('US with no state says United States', L.whereBorn(w('U', 'Guam', ['Q30'], []), sc()), 'Guam, United States');
+  eq('two countries are both named', L.whereBorn(w('J', 'Jerusalem', ['Q801', 'Q219060'], []), sc()), 'Jerusalem, Israel / Palestine');
+  eq('picked one of two: the other is not repeated', L.whereBorn(w('J', 'Jerusalem', ['Q801', 'Q219060'], []), sc('Q801')), 'Jerusalem');
+  eq('a birthplace that is the country is not doubled', L.whereBorn(w('A', 'Austria', ['Q40'], []), sc()), 'Austria');
+  eq('nor one that is the state', L.whereBorn(w('C', 'California', ['Q30'], ['Q99']), sc()), 'California');
+  eq('nor one whose label already ends in it', L.whereBorn(w('O', 'Ontario, California', ['Q30'], ['Q99']), sc()), 'Ontario, California');
+  eq('nor "Southern California"', L.whereBorn(w('S', 'Southern California', ['Q30'], ['Q99']), sc()), 'Southern California');
+  eq('no scope keeps the bare place (old callers)', L.lifeLine(tiger), 'b. 1975 · Cypress');
+  eq('.map(lifeLine) passes an index, not a scope', [tiger].map(L.lifeLine), ['b. 1975 · Cypress']);
+}
+
 // --- born near (a synthetic gazetteer, out of order where order matters) -----------
 {
   const nd = { a1: ['', 'Illinois', 'Massachusetts', 'Missouri', 'Lagos'], places: [
@@ -382,6 +406,27 @@ ok('Germany is over-represented among those who worked here', L.overRepresented(
   const byLabel = L.filterPeople(D.people, { q: 'menlo park' }).length;
   const byRadius = L.nearPeople(D.people, N.born, [town[L.N.LAT], town[L.N.LON]], 25).length;
   ok('within 25 km of Menlo Park finds more than its label does', byRadius > byLabel * 3, `${byRadius} vs ${byLabel}`);
+}
+
+// --- where, on the shipped data: every list of everyone can say where ------------
+for (const [nm, doc] of [['studied', D], ['worked', F]]) {
+  const names = new Map(doc.countries.map((c) => [c.q, c.name]));
+  const sc = { country: null, st: null, countryName: (q) => names.get(q), stateName: (q) => doc.states.names[q] };
+  const unnamed = doc.people.filter((p) => (p[L.P.ST] || []).some((q) => !doc.states.names[q])).length;
+  eq(`${nm}: every state a person carries has a name`, unnamed, 0);
+  // A person's line names their state or country unless the place already is it.
+  const silent = doc.people.filter((p) => L.whereBorn(p, sc) === p[L.P.PLACE] &&
+    ![...(p[L.P.CS] || []).map((q) => names.get(q)), ...(p[L.P.ST] || []).map((q) => doc.states.names[q])]
+      .some((x) => x && p[L.P.PLACE].toLowerCase().endsWith(x.toLowerCase())));
+  ok(`${nm}: every everyone-line says its country or state`, silent.length === 0, silent.slice(0, 3).map((p) => p[L.P.PLACE]).join('; '));
+}
+{
+  const names = new Map(D.countries.map((c) => [c.q, c.name]));
+  const sc = { country: null, st: null, countryName: (q) => names.get(q), stateName: (q) => D.states.names[q] };
+  const tw = D.people.find((p) => p[L.P.NAME] === 'Tiger Woods');
+  eq('Tiger Woods reads as Cypress, California, not Cyprus', tw && L.whereBorn(tw, sc), 'Cypress, California');
+  const sb = D.people.find((p) => p[L.P.NAME] === 'Sergey Brin');
+  eq('Sergey Brin reads as Moscow, Russia', sb && L.whereBorn(sb, sc), 'Moscow, Russia');
 }
 
 console.log(`${fail ? 'FAILED' : 'ok'}: ${pass} passed, ${fail} failed`);
