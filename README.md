@@ -48,7 +48,7 @@ other way round.
 ## Born near
 
 Type a hometown in **Born near** and pick it from the suggestions to see everyone born
-within 25, 50, 100 or 250 km of it, nearest first, whatever their birthplace is called.
+within 25, 50, 100 or 200 km of it, nearest first, whatever their birthplace is called.
 Someone born in Menlo Park turns up for Palo Alto. The towns are
 [GeoNames](https://www.geonames.org/) (CC BY 4.0) places of 5,000 or more people, plus
 every birthplace on the map. The link keeps the town, so `?near=Palo Alto, California,

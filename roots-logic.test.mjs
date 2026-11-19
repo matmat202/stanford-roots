@@ -52,10 +52,14 @@ eq('a-z ignores accents', names(L.sortPeople(people, 'az')), ['Ana Cohen', 'Ann 
   eq('undated namesakes too', L.sortPeople(undated, 'old').map((p) => p[0]), ['Q1', 'Q2', 'Q3']);
 }
 { // Best known first: most sitelinks first, ties by name then QID, no sitelink count last.
-  // Five, misordered, with a tie and a missing count; and it is the default.
+  // Seven, misordered, with a tie and a missing count; and it is the default.
+  // Fay (1) and Gus (0) are what make `(b[P.SL] || 0)` mean anything: with every count
+  // 3 or more, changing the `|| 0` default to any other small number reorders nothing,
+  // and the shipped data has 736 people at 0 and 661 at 1.
   const sl = (q, name, n) => { const p = [q, name, '', 1900, '', [], 0, 0, '', []]; if (n != null) p.push(n); return p; };
-  const fam = [sl('Q5', 'Eve', 3), sl('Q1', 'Cy', 40), sl('Q4', 'Al', 3), sl('Q2', 'Di'), sl('Q3', 'Bo', 120)];
-  eq('best known first, ties by name, no count last', names(L.sortPeople(fam, 'known')), ['Bo', 'Cy', 'Al', 'Eve', 'Di']);
+  const fam = [sl('Q5', 'Eve', 3), sl('Q1', 'Cy', 40), sl('Q4', 'Al', 3), sl('Q2', 'Di'),
+    sl('Q3', 'Bo', 120), sl('Q6', 'Fay', 1), sl('Q7', 'Gus', 0)];
+  eq('best known first, ties by name, no count last', names(L.sortPeople(fam, 'known')), ['Bo', 'Cy', 'Al', 'Eve', 'Fay', 'Di', 'Gus']);
   eq('best known is the default sort', names(L.sortPeople(fam)), names(L.sortPeople(fam, 'known')));
   eq('sitelinks sit at P.SL', L.P.SL, 10);
 }
@@ -104,8 +108,16 @@ eq('life line without year', L.lifeLine(people[2]), 'Taipei');
   eq('nor one that is the state', L.whereBorn(w('C', 'California', ['Q30'], ['Q99']), sc()), 'California');
   eq('nor one whose label already ends in it', L.whereBorn(w('O', 'Ontario, California', ['Q30'], ['Q99']), sc()), 'Ontario, California');
   eq('nor "Southern California"', L.whereBorn(w('S', 'Southern California', ['Q30'], ['Q99']), sc()), 'Southern California');
+  // whereBorn only suppresses a country the LIST has already said. A person the scope
+  // does not cover still gets theirs named — app.js filters by country so it cannot ask
+  // this today, but the guard is what makes `country` mean "already said" and not "any".
+  eq("another country's list still names Russia", L.whereBorn(brin, sc('Q801')), 'Moscow, Russia');
+  eq('the US list still names Russia for a non-US birth', L.whereBorn(brin, sc('Q30')), 'Moscow, Russia');
   eq('no scope keeps the bare place (old callers)', L.lifeLine(tiger), 'b. 1975 · Cypress');
-  eq('.map(lifeLine) passes an index, not a scope', [tiger].map(L.lifeLine), ['b. 1975 · Cypress']);
+  // 3 people, not 1: index 0 is falsy, so a one-element list cannot tell a scope object
+  // apart from an index and the guard reads as dead code.
+  eq('.map(lifeLine) passes an index, not a scope', [tiger, brin, tiger].map(L.lifeLine),
+    ['b. 1975 · Cypress', 'b. 1975 · Moscow', 'b. 1975 · Cypress']);
 }
 
 // --- born near (a synthetic gazetteer, out of order where order matters) -----------
