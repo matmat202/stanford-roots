@@ -40,6 +40,17 @@ eq('country and query combine', names(L.filterPeople(people, { country: 'Q142', 
 eq('empty query is everyone', L.filterPeople(people, {}).length, 5);
 eq('whitespace query is everyone', L.filterPeople(people, { q: '   ' }).length, 5);
 eq('no match is empty, not everyone', L.filterPeople(people, { q: 'zzzz' }).length, 0);
+{
+  // The list prints "Dayton, Ohio" and "Lyon, France"; search must find what it prints.
+  const nm = { countryName: (q) => ({ Q155: 'Brazil', Q30: 'United States', Q142: 'France' })[q], stateName: (q) => ({ Q1397: 'Ohio' })[q] };
+  const day = [...mk('Q6', 'Dee Day', 'aviator', 1871, 'Dayton', ['Q30']), ['Q1397'], 0];
+  const fx = [...people, day];
+  eq('search finds the state the list prints', names(L.filterPeople(fx, { q: 'ohio', ...nm })), ['Ann Lee', 'Dee Day']);
+  eq('search finds the country the list prints', names(L.filterPeople(fx, { q: 'france', ...nm })), ['Zed Zane']);
+  eq('country and description words combine', names(L.filterPeople(fx, { q: 'brazil physicist', ...nm })), ['José Álvarez']);
+  eq('without names, only the raw birthplace', names(L.filterPeople(fx, { q: 'ohio' })), ['Ann Lee']);
+  eq('an unknown qid adds nothing', L.filterPeople(fx, { q: 'undefined', ...nm }).length, 0);
+}
 
 // --- sort (5 items, deliberately out of order: a 2-element sort hides comparator bugs)
 eq('oldest first, ties by name, unknown last', names(L.sortPeople(people, 'old')), ['Ann Lee', 'José Álvarez', 'Zed Zane', 'Ana Cohen', 'Bo Chen']);
@@ -256,6 +267,25 @@ ok('every country count equals its people', sumOk);
 ok('every person has at least one known country', D.people.every((p) => p[5].length >= 1 && p[5].every((c) => byQ.has(c))));
 ok('every person has a name and a url', D.people.every((p) => p[1] && /^(w:|https:\/\/www\.wikidata\.org\/wiki\/Q)/.test(p[8])));
 ok('ids are unique', new Set(D.people.map((p) => p[0])).size === D.people.length);
+{
+  // On the real data: a search for any country or state name finds everyone born there,
+  // as the everywhere list labels them. 4 of 74 for "Ohio" before the names were searched.
+  const nm = { countryName: (q) => byQ.get(q)?.name, stateName: (q) => D.states.names?.[q] };
+  const short = [];
+  for (const c of D.countries) {
+    const got = L.filterPeople(D.people, { q: c.name, ...nm }).filter((p) => p[5].includes(c.q)).length;
+    if (got !== c.n) short.push(`${c.name} ${got}/${c.n}`);
+  }
+  for (const [s, name] of Object.entries(D.states.names || {})) {
+    const want = L.filterPeople(D.people, { country: L.US, st: s }).length;
+    const got = L.filterPeople(D.people, { country: L.US, q: name, ...nm }).filter((p) => p[9].includes(s)).length;
+    if (got !== want) short.push(`${name} ${got}/${want}`);
+  }
+  ok('every country and state name finds everyone born there', short.length === 0, short.slice(0, 5).join(', '));
+  ok('the state names are there to search', Object.keys(D.states.names || {}).length >= 51, Object.keys(D.states.names || {}).length);
+  const ohio = L.filterPeople(D.people, { q: 'ohio', ...nm }).length;
+  ok('"ohio" finds more than its raw birthplaces', ohio > 4 * L.filterPeople(D.people, { q: 'ohio' }).length, ohio);
+}
 // The default sort reads P.SL. A fetch that drops ?sl ships every count as 0 (or missing),
 // and "Best known first" then quietly becomes A-Z: nothing throws.
 for (const [name, X] of [['studied', D], ['worked', F]]) {

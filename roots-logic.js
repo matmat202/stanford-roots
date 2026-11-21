@@ -31,15 +31,18 @@ export const fold = (s) => String(s ?? '').normalize('NFD').replace(/\p{M}+/gu, 
 
 /* Everyone matching a country (null = everywhere), a US state (only with the US chosen)
  * and a free-text query over name, description and birthplace. Every word of the query
- * must match somewhere. */
-export function filterPeople(people, { country = null, st = null, q = '' } = {}) {
+ * must match somewhere. The birthplace includes its country and US state names when
+ * countryName/stateName are given: the list prints "Dayton, Ohio", and without them a
+ * search for "Ohio" found 4 of the 74 people it labels that way, "Germany" 1 of 92. */
+export function filterPeople(people, { country = null, st = null, q = '', countryName = null, stateName = null } = {}) {
   const words = fold(q).split(/\s+/).filter(Boolean);
   if (country !== US) st = null;
   return people.filter((p) => {
     if (country && !p[P.CS].includes(country)) return false;
     if (st && !(p[P.ST] || []).includes(st)) return false;
     if (!words.length) return true;
-    const hay = fold(`${p[P.NAME]} ${p[P.DESC]} ${p[P.PLACE]}`);
+    const where = [...(countryName ? p[P.CS].map(countryName) : []), ...(stateName ? (p[P.ST] || []).map(stateName) : [])];
+    const hay = fold(`${p[P.NAME]} ${p[P.DESC]} ${p[P.PLACE]} ${where.filter(Boolean).join(' ')}`);
     return words.every((w) => hay.includes(w));
   });
 }

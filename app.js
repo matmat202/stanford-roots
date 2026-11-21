@@ -153,13 +153,13 @@ function drawSelection() {
 
 // Everyone matching the search born within the radius, nearest first, as { p, d }.
 function nearList() {
-  return nearPeople(filterPeople(D.people, { q: state.q }), ND.born, [state.near.lat, state.near.lon], state.km);
+  return nearPeople(filterPeople(D.people, { q: state.q, ...names() }), ND.born, [state.near.lat, state.near.lon], state.km);
 }
 
 function drawList() {
   if (state.near && ND) { drawNearList(); return; }
   $('sort').disabled = false;
-  const list = sortPeople(filterPeople(D.people, state), state.sort);
+  const list = sortPeople(filterPeople(D.people, { ...state, ...names() }), state.sort);
   const c = state.country && byQ.get(state.country);
   const where = state.st ? stName.get(state.st) : c && c.name;
   $('listTitle').textContent = where ? `Born in ${where}` : 'Born everywhere';
@@ -178,12 +178,16 @@ function drawList() {
   more.textContent = `Show more (${fmt(list.length - state.shown)} left)`;
 }
 
+// Country and state names by QID, for search and for the birthplace line alike.
+function names() {
+  return { countryName: (q) => byQ.get(q)?.name, stateName: (q) => D.states.names?.[q] };
+}
+
 // What the open list has already said about where its people were born. A hometown list
 // spans borders whatever country was picked before, so it counts as everywhere.
 function listScope() {
   const near = !!(state.near && ND);
-  return { country: near ? null : state.country, st: near ? null : state.st,
-    countryName: (q) => byQ.get(q)?.name, stateName: (q) => D.states.names?.[q] };
+  return { country: near ? null : state.country, st: near ? null : state.st, ...names() };
 }
 
 function personItem(p, d = null) {
@@ -213,7 +217,7 @@ function drawNearList() {
   if (!list.length) {
     const li = document.createElement('li');
     li.className = 'empty';
-    const best = nearest(filterPeople(D.people, { q: state.q }), ND.born, [state.near.lat, state.near.lon]);
+    const best = nearest(filterPeople(D.people, { q: state.q, ...names() }), ND.born, [state.near.lat, state.near.lon]);
     li.textContent = `Nobody who ${VERB[state.view]} here${state.q ? ` and matches “${state.q}”` : ''} was born within ${state.km} km.` +
       (best ? ` The nearest, ${kmLabel(best.d)} away:` : '');
     ol.append(li);

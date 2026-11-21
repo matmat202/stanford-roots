@@ -5,7 +5,7 @@
 A world map of where Stanford's people were born. Tap a country, or pick it from the
 list, to see everyone from it: name, what they did, birth year and birthplace, each
 linked to Wikipedia (or to Wikidata when there is no English article). Search works
-within a country or across all of them: try *physicist*, *Lagos* or *Nobel*. A list that spans countries
+within a country or across all of them: try *physicist*, *Lagos*, *Ohio* or *Nobel*. A country or US state name finds everyone born there, since that is what each row prints. A list that spans countries
 says where each birthplace is ("Moscow, Russia", or the state for the US-born: "Cypress,
 California"); a country's own list leaves that off.
 
