@@ -441,6 +441,36 @@ ok('Germany is over-represented among those who worked here', L.overRepresented(
   const sf = L.matchPlaces(N, 'springfield, il');
   eq('"springfield, il" puts Illinois first', L.placeLabel(N, sf[0]), 'Springfield, Illinois, United States');
   eq('a real label round-trips', L.placeByLabel(N, L.placeLabel(N, sf[0])), sf[0]);
+  // Two towns, one label: six places are "Pudur, Tamil Nadu, India" (they fold alike), and
+  // placeByLabel folds and takes the FIRST match -- so a ?near= link written for the second
+  // used to reopen on the first, up to 1,718 km away. build.py's hints() gives the smaller
+  // of each colliding group a bigger neighbour's name; the biggest keeps the bare label.
+  { const labels = N.places.map((pl) => L.fold(L.placeLabel(N, pl)));
+    const dup = labels.filter((l, i) => labels.indexOf(l) !== i);
+    eq('shipped: no two places share a label', [dup.length, dup.slice(0, 3)], [0, []]);
+    const hinted = N.places.filter((pl) => pl[L.N.HINT]);
+    ok('shipped: enough places are hinted for the checks above to mean something',
+      hinted.length >= 200, hinted.length);
+    // Every hinted row must still round-trip: this is the whole point of the change.
+    const off = hinted.filter((pl) => L.placeByLabel(N, L.placeLabel(N, pl)) !== pl);
+    eq('shipped: every hinted place round-trips through its own label', off.length, 0);
+    const pudur = N.places.filter((pl) => L.fold(pl[L.N.NAME]) === 'pudur' && N.a1[pl[L.N.A1]] === 'Tamil Nadu');
+    eq('shipped: six Pudurs, six different labels', [pudur.length, new Set(pudur.map((pl) => L.placeLabel(N, pl))).size], [6, 6]);
+    // HINT is index 6, so a row with a hint but no ascii must carry an empty ASCII slot --
+    // otherwise the hint lands on N.ASCII and the page reads it as an alternate name.
+    eq('shipped: a hint never sits in the ascii slot', hinted.filter((pl) => typeof pl[L.N.ASCII] !== 'string').length, 0);
+    ok('shipped: a hint is a real place of the same country',
+      hinted.every((pl) => N.places.some((o) => o[L.N.NAME] === pl[L.N.HINT] && o[L.N.CC] === pl[L.N.CC])), true);
+    // placeByLabel strips "(near X)" off the search term; this is the premise that makes
+    // that safe. Real names do carry parentheses ("Halle (Saale)", "Frankfurt (Oder)"), but
+    // none carries "(near ", so the strip cannot eat part of a real name. A round-trip test
+    // over those names is NOT kept here: it could not be made to red (2026-11-22, four
+    // mutations tried, including truncating the search term to three characters), because
+    // placeByLabel re-compares the whole label over a loose prefix search, so over-stripping
+    // the term is harmless by construction. Under-stripping was the bug, and the hinted
+    // round-trip check above is what catches that.
+    eq('shipped: no real name contains "(near "', N.places.filter((pl) => /\(near /i.test(pl[L.N.NAME])).length, 0);
+  }
   // The measured claim the feature rests on (2026-10-26): a radius finds people a label
   // search does not. Lagos, Portugal-sized towns aside, a town nobody was born in by name
   // still has neighbours.

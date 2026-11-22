@@ -123,7 +123,7 @@ export const ratioLabel = (r, other = 'studied') => (r === Infinity ? `(none who
  * 2026-10-26, 30 km finds a median of 3 people where the label finds 1. */
 export const RADII = [25, 50, 100, 200];
 export const DEFAULT_KM = 50;
-export const N = { NAME: 0, CC: 1, A1: 2, LAT: 3, LON: 4, ASCII: 5 };
+export const N = { NAME: 0, CC: 1, A1: 2, LAT: 3, LON: 4, ASCII: 5, HINT: 6 };
 
 export function distKm(lat1, lon1, lat2, lon2) {
   const r = Math.PI / 180;
@@ -151,8 +151,13 @@ export function countryName(cc) {
 }
 
 // "Springfield, Illinois, United States"; a birthplace GeoNames could not place is its name.
+// Six places are called "Pudur, Tamil Nadu, India" and placeByLabel takes the first row that
+// matches, so a ?near= link for the second used to reopen on the first. build.py gives the
+// smaller of each colliding group a HINT -- a bigger neighbour's name -- and the biggest
+// keeps the bare label, so links written before that still open the town they opened then.
 export function placeLabel(nd, pl) {
-  return [pl[N.NAME], nd.a1[pl[N.A1]] || '', countryName(pl[N.CC])].filter(Boolean)
+  const name = pl[N.HINT] ? `${pl[N.NAME]} (near ${pl[N.HINT]})` : pl[N.NAME];
+  return [name, nd.a1[pl[N.A1]] || '', countryName(pl[N.CC])].filter(Boolean)
     .filter((x, i, a) => a.indexOf(x) === i).join(', ');
 }
 
@@ -213,8 +218,12 @@ export function placeByLabel(nd, label) {
   const want = fold(label).trim();
   if (!want) return null;
   // Only the town part is searched: the rest of a label ("Illinois, United States") is
-  // not a qualifier matchPlaces understands, and the full label is compared after.
-  for (const pl of matchPlaces(nd, want.split(',')[0], 1000)) if (fold(placeLabel(nd, pl)) === want) return pl;
+  // not a qualifier matchPlaces understands, and the full label is compared after. The
+  // "(near X)" a colliding place carries is part of its label but not of its name, so it
+  // has to come off the search term or matchPlaces finds nothing and every hinted place
+  // stops round-tripping -- which is exactly what its own ?near= link needs it to do.
+  const term = want.split(',')[0].replace(/\s*\(near .*$/, '').trim();
+  for (const pl of matchPlaces(nd, term, 1000)) if (fold(placeLabel(nd, pl)) === want) return pl;
   return null;
 }
 
