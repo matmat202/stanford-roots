@@ -1,6 +1,6 @@
 // node site/roots-logic.test.mjs — the page's pure logic, plus the shipped data checked
 // against the rules that read it. Exit 1 on any failure.
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import * as L from './roots-logic.js';
 
@@ -499,6 +499,40 @@ for (const [nm, doc] of [['studied', D], ['worked', F]]) {
   eq('Tiger Woods reads as Cypress, California, not Cyprus', tw && L.whereBorn(tw, sc), 'Cypress, California');
   const sb = D.people.find((p) => p[L.P.NAME] === 'Sergey Brin');
   eq('Sergey Brin reads as Moscow, Russia', sb && L.whereBorn(sb, sc), 'Moscow, Russia');
+}
+
+// --- Nobel Prizes ---------------------------------------------------------------------
+// The search box suggests "Nobel". By description alone it found 8 of the 22 laureates who
+// studied here and 10 of the 45 who worked here: the prize is P166 on Wikidata, not prose.
+{
+  const row = mk('Q9', 'Pat Doe', 'American chemist', 1941, 'Philadelphia', ['Q30']);
+  row[10] = 3; row[L.P.NOBEL] = 'Nobel Prize in Chemistry 2001, 2022';
+  eq('P.NOBEL is the optional last field', L.P.NOBEL, 11);
+  eq('"nobel" finds a laureate whose description does not say so', L.filterPeople([row], { q: 'nobel' }).length, 1);
+  eq('the prize\'s field is searchable', L.filterPeople([row], { q: 'nobel chemistry 2022' }).length, 1);
+  eq('a row with no prize field still searches', L.filterPeople([mk('Q8', 'Al', 'physicist', 1, 'X', ['Q30'])], { q: 'nobel' }).length, 0);
+  // The raw extract sits beside site/ in the project, not in a staged or deployed copy: there
+  // the laureates are the rows that carry a prize, and publish.sh has already run this suite
+  // against the extract in the working tree before it stages anything.
+  const awPath = here + '../data/awards.raw.json';
+  const aw = existsSync(awPath) ? JSON.parse(readFileSync(awPath, 'utf8')) : null;
+  if (!aw) console.log('note: data/awards.raw.json not beside this copy; laureates read from the shipped rows');
+  for (const [name, X] of [['studied', D], ['worked', F]]) {
+    const laureates = X.people.filter((p) => (aw ? aw.people[p[L.P.Q]] : p.length > L.P.NOBEL));
+    ok(`${name}: laureates in the extract are in the view`, laureates.length >= (name === 'studied' ? 20 : 40), laureates.length);
+    const unmarked = laureates.filter((p) => !/^Nobel (Prize in [A-Z]|Peace Prize)/.test(p[L.P.NOBEL] || ''));
+    ok(`${name}: every laureate carries the prize`, !unmarked.length, unmarked.slice(0, 3).map((p) => p[L.P.NAME]).join(', '));
+    if (aw) ok(`${name}: only laureates carry a prize`, X.people.every((p) => (p.length > L.P.NOBEL) === !!aw.people[p[L.P.Q]]));
+    const found = new Set(L.filterPeople(X.people, { q: 'nobel' }).map((p) => p[L.P.Q]));
+    const missed = laureates.filter((p) => !found.has(p[L.P.Q]));
+    ok(`${name}: "nobel" finds every laureate`, !missed.length, `${missed.length} missed: ${missed.slice(0, 3).map((p) => p[L.P.NAME]).join(', ')}`);
+  }
+  const lp = F.people.find((p) => p[L.P.NAME] === 'Linus Pauling');
+  eq('two different prizes read as two clauses', lp && lp[L.P.NOBEL], 'Nobel Prize in Chemistry 1954; Nobel Peace Prize 1962');
+  const ks = D.people.find((p) => p[L.P.NAME] === 'Karl Barry Sharpless');
+  eq('one prize twice reads as one clause, two years', ks && ks[L.P.NOBEL], 'Nobel Prize in Chemistry 2001, 2022');
+  const peace = L.filterPeople(F.people, { q: 'nobel peace' }).filter((p) => p[L.P.NOBEL]);
+  ok('"nobel peace" finds Pauling, and no laureate without that prize', peace.some((p) => p[L.P.NAME] === 'Linus Pauling') && peace.every((p) => p[L.P.NOBEL].includes('Peace Prize')), peace.map((p) => p[L.P.NAME]).join(', '));
 }
 
 console.log(`${fail ? 'FAILED' : 'ok'}: ${pass} passed, ${fail} failed`);

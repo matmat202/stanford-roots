@@ -5,7 +5,8 @@
  * The states are empty for anyone not counted in the US, and for the ~2% of the US-born
  * whose birthplace Wikidata does not place in a state (bare "United States", Puerto Rico).
  */
-export const P = { Q: 0, NAME: 1, DESC: 2, BORN: 3, PLACE: 4, CS: 5, X: 6, Y: 7, URL: 8, ST: 9, SL: 10 };
+// NOBEL is optional and last: only a laureate's row carries it ("Nobel Prize in Physics 1990").
+export const P = { Q: 0, NAME: 1, DESC: 2, BORN: 3, PLACE: 4, CS: 5, X: 6, Y: 7, URL: 8, ST: 9, SL: 10, NOBEL: 11 };
 export const US = 'Q30';
 
 // Class breaks for the map. Counts run from 1 to ~3,800 (the US), so they are log-ish:
@@ -30,7 +31,7 @@ export function binLabel(i, breaks = BREAKS) {
 export const fold = (s) => String(s ?? '').normalize('NFD').replace(/\p{M}+/gu, '').toLowerCase();
 
 /* Everyone matching a country (null = everywhere), a US state (only with the US chosen)
- * and a free-text query over name, description and birthplace. Every word of the query
+ * and a free-text query over name, description, Nobel Prize and birthplace. Every word of the query
  * must match somewhere. The birthplace includes its country and US state names when
  * countryName/stateName are given: the list prints "Dayton, Ohio", and without them a
  * search for "Ohio" found 4 of the 74 people it labels that way, "Germany" 1 of 92. */
@@ -42,7 +43,9 @@ export function filterPeople(people, { country = null, st = null, q = '', countr
     if (st && !(p[P.ST] || []).includes(st)) return false;
     if (!words.length) return true;
     const where = [...(countryName ? p[P.CS].map(countryName) : []), ...(stateName ? (p[P.ST] || []).map(stateName) : [])];
-    const hay = fold(`${p[P.NAME]} ${p[P.DESC]} ${p[P.PLACE]} ${where.filter(Boolean).join(' ')}`);
+    // The prize is searched too: "Nobel", the box's own example, found 8 of the 22 laureates
+    // who studied here by description alone.
+    const hay = fold(`${p[P.NAME]} ${p[P.DESC]} ${p[P.NOBEL] || ''} ${p[P.PLACE]} ${where.filter(Boolean).join(' ')}`);
     return words.every((w) => hay.includes(w));
   });
 }
