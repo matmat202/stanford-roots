@@ -5,8 +5,9 @@
  * The states are empty for anyone not counted in the US, and for the ~2% of the US-born
  * whose birthplace Wikidata does not place in a state (bare "United States", Puerto Rico).
  */
-// NOBEL is optional and last: only a laureate's row carries it ("Nobel Prize in Physics 1990").
-export const P = { Q: 0, NAME: 1, DESC: 2, BORN: 3, PLACE: 4, CS: 5, X: 6, Y: 7, URL: 8, ST: 9, SL: 10, NOBEL: 11 };
+// HONOURS is optional and last: only an honoured row carries it ("Nobel Prize in Physics 1990",
+// "Olympic gold medal 2016 ×2; Turing Award 1971").
+export const P = { Q: 0, NAME: 1, DESC: 2, BORN: 3, PLACE: 4, CS: 5, X: 6, Y: 7, URL: 8, ST: 9, SL: 10, HONOURS: 11 };
 export const US = 'Q30';
 
 // Class breaks for the map. Counts run from 1 to ~3,800 (the US), so they are log-ish:
@@ -45,7 +46,7 @@ export function filterPeople(people, { country = null, st = null, q = '', countr
     const where = [...(countryName ? p[P.CS].map(countryName) : []), ...(stateName ? (p[P.ST] || []).map(stateName) : [])];
     // The prize is searched too: "Nobel", the box's own example, found 8 of the 22 laureates
     // who studied here by description alone.
-    const hay = fold(`${p[P.NAME]} ${p[P.DESC]} ${p[P.NOBEL] || ''} ${p[P.PLACE]} ${where.filter(Boolean).join(' ')}`);
+    const hay = fold(`${p[P.NAME]} ${p[P.DESC]} ${p[P.HONOURS] || ''} ${p[P.PLACE]} ${where.filter(Boolean).join(' ')}`);
     return words.every((w) => hay.includes(w));
   });
 }

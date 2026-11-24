@@ -506,8 +506,8 @@ for (const [nm, doc] of [['studied', D], ['worked', F]]) {
 // studied here and 10 of the 45 who worked here: the prize is P166 on Wikidata, not prose.
 {
   const row = mk('Q9', 'Pat Doe', 'American chemist', 1941, 'Philadelphia', ['Q30']);
-  row[10] = 3; row[L.P.NOBEL] = 'Nobel Prize in Chemistry 2001, 2022';
-  eq('P.NOBEL is the optional last field', L.P.NOBEL, 11);
+  row[10] = 3; row[L.P.HONOURS] = 'Nobel Prize in Chemistry 2001, 2022';
+  eq('P.NOBEL is the optional last field', L.P.HONOURS, 11);
   eq('"nobel" finds a laureate whose description does not say so', L.filterPeople([row], { q: 'nobel' }).length, 1);
   eq('the prize\'s field is searchable', L.filterPeople([row], { q: 'nobel chemistry 2022' }).length, 1);
   eq('a row with no prize field still searches', L.filterPeople([mk('Q8', 'Al', 'physicist', 1, 'X', ['Q30'])], { q: 'nobel' }).length, 0);
@@ -518,21 +518,70 @@ for (const [nm, doc] of [['studied', D], ['worked', F]]) {
   const aw = existsSync(awPath) ? JSON.parse(readFileSync(awPath, 'utf8')) : null;
   if (!aw) console.log('note: data/awards.raw.json not beside this copy; laureates read from the shipped rows');
   for (const [name, X] of [['studied', D], ['worked', F]]) {
-    const laureates = X.people.filter((p) => (aw ? aw.people[p[L.P.Q]] : p.length > L.P.NOBEL));
+    const laureates = X.people.filter((p) => (aw ? aw.people[p[L.P.Q]] : p.length > L.P.HONOURS));
     ok(`${name}: laureates in the extract are in the view`, laureates.length >= (name === 'studied' ? 20 : 40), laureates.length);
-    const unmarked = laureates.filter((p) => !/^Nobel (Prize in [A-Z]|Peace Prize)/.test(p[L.P.NOBEL] || ''));
+    const unmarked = laureates.filter((p) => !/^Nobel (Prize in [A-Z]|Peace Prize)/.test(p[L.P.HONOURS] || ''));
     ok(`${name}: every laureate carries the prize`, !unmarked.length, unmarked.slice(0, 3).map((p) => p[L.P.NAME]).join(', '));
-    if (aw) ok(`${name}: only laureates carry a prize`, X.people.every((p) => (p.length > L.P.NOBEL) === !!aw.people[p[L.P.Q]]));
+    if (aw && aw.honours) ok(`${name}: only laureates and the otherwise honoured carry the field`, X.people.every((p) => (p.length > L.P.HONOURS) === !!(aw.people[p[L.P.Q]] || (aw.honours || {})[p[L.P.Q]])));
     const found = new Set(L.filterPeople(X.people, { q: 'nobel' }).map((p) => p[L.P.Q]));
     const missed = laureates.filter((p) => !found.has(p[L.P.Q]));
     ok(`${name}: "nobel" finds every laureate`, !missed.length, `${missed.length} missed: ${missed.slice(0, 3).map((p) => p[L.P.NAME]).join(', ')}`);
   }
   const lp = F.people.find((p) => p[L.P.NAME] === 'Linus Pauling');
-  eq('two different prizes read as two clauses', lp && lp[L.P.NOBEL], 'Nobel Prize in Chemistry 1954; Nobel Peace Prize 1962');
+  eq('two different prizes read as two clauses', lp && lp[L.P.HONOURS], 'Nobel Prize in Chemistry 1954; Nobel Peace Prize 1962');
   const ks = D.people.find((p) => p[L.P.NAME] === 'Karl Barry Sharpless');
-  eq('one prize twice reads as one clause, two years', ks && ks[L.P.NOBEL], 'Nobel Prize in Chemistry 2001, 2022');
-  const peace = L.filterPeople(F.people, { q: 'nobel peace' }).filter((p) => p[L.P.NOBEL]);
-  ok('"nobel peace" finds Pauling, and no laureate without that prize', peace.some((p) => p[L.P.NAME] === 'Linus Pauling') && peace.every((p) => p[L.P.NOBEL].includes('Peace Prize')), peace.map((p) => p[L.P.NAME]).join(', '));
+  eq('one prize twice reads as one clause, two years', ks && ks[L.P.HONOURS], 'Nobel Prize in Chemistry 2001, 2022');
+  const peace = L.filterPeople(F.people, { q: 'nobel peace' }).filter((p) => p[L.P.HONOURS]);
+  ok('"nobel peace" finds Pauling, and no laureate without that prize', peace.some((p) => p[L.P.NAME] === 'Linus Pauling') && peace.every((p) => p[L.P.HONOURS].includes('Peace Prize')), peace.map((p) => p[L.P.NAME]).join(', '));
+}
+
+// --- Olympic medals and other honours -------------------------------------------------
+// Searching "Olympic" found 19 of the 64 medallists in the extracts: descriptions say
+// "American swimmer". A medal is a qualifier on P1344 "participant in <event>", read into
+// awards.raw.json's "honours" with the Turing Award, Fields Medal and Pulitzer categories.
+{
+  const awPath = here + '../data/awards.raw.json';
+  // .publish resolves ../data into the MAIN checkout, whose extract may predate "honours":
+  // an extract without it is no extract here, and the shipped rows are read instead.
+  const raw = existsSync(awPath) ? JSON.parse(readFileSync(awPath, 'utf8')) : null;
+  const aw = raw && raw.honours ? raw : null;
+  if (!aw) console.log('note: no honours extract beside this copy; medallists read from the shipped rows');
+  const hon = (p) => p[L.P.HONOURS] || '';
+  for (const [name, X] of [['studied', D], ['worked', F]]) {
+    const medallists = X.people.filter((p) => (aw ? (aw.honours[p[L.P.Q]] || []).some((h) => h[0].startsWith('Olympic')) : /Olympic (gold|silver|bronze) medal/.test(hon(p))));
+    if (name === 'studied') ok('studied: medallists in the extract are in the view', medallists.length >= 50, medallists.length);
+    const found = new Set(L.filterPeople(X.people, { q: 'olympic medal' }).map((p) => p[L.P.Q]));
+    const missed = medallists.filter((p) => !found.has(p[L.P.Q]));
+    ok(`${name}: "olympic medal" finds every medallist`, !missed.length, `${missed.length} missed: ${missed.slice(0, 3).map((p) => p[L.P.NAME]).join(', ')}`);
+    if (aw) {
+      // every medal in the extract is on the card: the count of a colour equals the events
+      const short = medallists.filter((p) => {
+        for (const c of ['gold', 'silver', 'bronze']) {
+          const want = aw.honours[p[L.P.Q]].filter((h) => h[0] === `Olympic ${c} medal`).length;
+          const m = hon(p).match(new RegExp(`Olympic ${c} medal ([^;]*)`));
+          const shown = m ? m[1].split(', ').reduce((n, y) => n + (/×(\d+)/.test(y) ? +y.match(/×(\d+)/)[1] : 1), 0) : 0;
+          if (want !== shown) return true;
+        }
+        return false;
+      });
+      ok(`${name}: each card shows as many medals of each colour as the extract has events`, !short.length, short.slice(0, 3).map((p) => `${p[L.P.NAME]}: ${hon(p)}`).join(' / '));
+    }
+  }
+  const kl = D.people.find((p) => p[L.P.NAME] === 'Katie Ledecky');
+  eq('a year medalled in more than once reads as ×n, colours as clauses', kl && hon(kl), 'Olympic gold medal 2012, 2016 ×4, 2020 ×2; Olympic silver medal 2016, 2020 ×2');
+  // Janet Evans won 3 golds in 1988 and 1 gold + 1 silver in 1992; her summary statements on
+  // the Games themselves once added a 4th 1988 gold and a 2nd 1992 silver.
+  const je = D.people.find((p) => p[L.P.NAME] === 'Janet Evans');
+  eq('a Games-level summary statement does not add to the event medals', je && hon(je), 'Olympic gold medal 1988 ×3, 1992; Olympic silver medal 1992');
+  const ss = D.people.find((p) => p[L.P.NAME] === 'Summer Sanders');
+  eq('gold reads before silver before bronze in one year', ss && hon(ss), 'Olympic gold medal 1992 ×2; Olympic silver medal 1992; Olympic bronze medal 1992');
+  const ks = D.people.find((p) => p[L.P.NAME] === 'Karl Barry Sharpless');
+  ok('a Nobel stays first on its line', ks && hon(ks).startsWith('Nobel Prize in Chemistry 2001, 2022'), ks && hon(ks));
+  const turing = L.filterPeople(F.people, { q: 'turing award' });
+  ok('"turing award" finds Knuth and Hennessy among those who worked here', ['Donald Knuth', 'John L. Hennessy'].every((n) => turing.some((p) => p[L.P.NAME] === n)), turing.length);
+  const fields = L.filterPeople(F.people, { q: 'fields medal' });
+  ok('"fields medal" finds Mirzakhani', fields.some((p) => p[L.P.NAME] === 'Maryam Mirzakhani'), fields.length);
+  ok('"pulitzer" finds someone who studied here', L.filterPeople(D.people, { q: 'pulitzer' }).some((p) => /Pulitzer Prize/.test(hon(p))));
 }
 
 console.log(`${fail ? 'FAILED' : 'ok'}: ${pass} passed, ${fail} failed`);

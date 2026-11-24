@@ -199,7 +199,7 @@ function personItem(p, d = null) {
   src.className = 'src'; src.textContent = isWikipedia(p[P.URL]) ? 'Wikipedia' : 'Wikidata';
   li.append(a, src);
   if (p[P.DESC]) { const dv = document.createElement('div'); dv.className = 'd'; dv.textContent = p[P.DESC]; li.append(dv); }
-  if (p[P.NOBEL]) { const nv = document.createElement('div'); nv.className = 'nb'; nv.textContent = p[P.NOBEL]; li.append(nv); }
+  if (p[P.HONOURS]) { const nv = document.createElement('div'); nv.className = 'nb'; nv.textContent = p[P.HONOURS]; li.append(nv); }
   const l = document.createElement('div'); l.className = 'l'; l.textContent = lifeLine(p, listScope());
   if (d != null) { const k = document.createElement('span'); k.className = 'km'; k.textContent = ` · ${kmLabel(d)} away`; l.append(k); }
   li.append(l);
